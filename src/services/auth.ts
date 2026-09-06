@@ -154,12 +154,37 @@ async function bearerProvider(req: Request): Promise<ApiSessionUser | null> {
   };
 }
 
+/** Google/OIDC provider: verified HMAC session cookie → users row. */
+async function oidcSessionProvider(req?: Request): Promise<SessionUser | null> {
+  const { SESSION_COOKIE, verifySessionCookieValue } = await import("./oidc");
+  let cookieValue: string | undefined;
+  if (req) {
+    const raw = req.headers.get("cookie") ?? "";
+    cookieValue = raw
+      .split(";")
+      .map((part) => part.trim())
+      .find((part) => part.startsWith(`${SESSION_COOKIE}=`))
+      ?.slice(SESSION_COOKIE.length + 1);
+    if (cookieValue) cookieValue = decodeURIComponent(cookieValue);
+  } else {
+    const jar = await cookies();
+    cookieValue = jar.get(SESSION_COOKIE)?.value;
+  }
+  const email = verifySessionCookieValue(cookieValue);
+  if (!email) return null;
+  const db = await getDb();
+  const [row] = await db.select().from(users).where(eq(users.email, email)).limit(1);
+  if (!row?.active) return null;
+  return { id: row.id, email: row.email, name: row.name, role: row.role };
+}
+
 export async function getSession(req?: Request): Promise<SessionUser | ApiSessionUser | null> {
   if (req?.headers.get("authorization")) return bearerProvider(req);
   const provider = process.env.AUTH_PROVIDER ?? "dev";
+  if (provider === "google" || provider === "oidc") return oidcSessionProvider(req);
   if (provider === "sso") return ssoProvider(req);
   if (provider === "dev") return devProvider();
-  throw new AuthError(401, "AUTH_PROVIDER is invalid. Use dev or sso.");
+  throw new AuthError(401, "AUTH_PROVIDER is invalid. Use dev, google, oidc, or sso.");
 }
 
 export function capabilitiesFor(actor: SessionUser | null): SessionCapabilities {

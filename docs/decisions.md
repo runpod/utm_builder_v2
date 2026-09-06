@@ -164,15 +164,15 @@ Format per entry: Status / Context / Options / Decision / Justification / Tradeo
 - **Tradeoffs:** Mixed-policy history requires reading the per-link emitted values; policy flips affect only future links.
 - **Revisit trigger:** GA4 custom dimension registered and validated → consider enabling `rp_initiative_id` (the "public-param final policy" open decision).
 
-## 17. Authentication abstraction pending Runpod SSO
+## 17. Google OAuth (OIDC) as the production sign-in provider
 
-- **Status:** Accepted (interim)
-- **Context:** Runpod's IdP choice for internal tools isn't approved yet; development can't wait.
-- **Options:** (a) block on SSO; (b) build a full local auth system (passwords/sessions); (c) provider abstraction with a dev provider now and an SSO seam.
-- **Decision:** `getSession()` in `src/services/auth.ts` dispatches on `AUTH_PROVIDER`. The `dev` provider selects a seeded identity via cookie and refuses to run in production. The `sso` provider verifies a short-lived HMAC-signed email supplied by an approved identity-aware proxy, then reads roles from the `users` table server-side ([deployment-vercel.md](deployment-vercel.md) §4).
-- **Justification:** A homegrown password system would be discarded work and a liability. The abstraction keeps every route's enforcement (`requireUser`/`requireRole`) final regardless of provider.
-- **Tradeoffs:** Production and Preview require the identity proxy and separate `SSO_HEADER_SECRET` values. The former `ALLOW_DEV_AUTH` escape hatch remains removed; no deployed environment may use the dev identity provider.
-- **Revisit trigger:** An approved IdP SDK that can be verified directly inside the application may replace the signed-proxy adapter.
+- **Status:** Accepted (updated 2026-09-06; supersedes "interim" status)
+- **Context:** Every Runpod employee has a Google Workspace account; Runpod's SaaS SSO catalog runs on Okta, but the UTM Builder pilot should not block on an Okta app registration. The earlier signed-header proxy adapter required standing up an identity-aware proxy that does not exist yet.
+- **Options:** (a) identity-aware proxy with signed headers (previous decision); (b) in-app Google OAuth; (c) generic in-app OIDC defaulting to Google.
+- **Decision:** (c). `AUTH_PROVIDER=google` runs the authorization-code flow in-app (`src/services/oidc.ts`): confidential-client code exchange over TLS, strict claim validation (iss/aud/exp/nonce/email_verified/allowed domain), HMAC-signed 12-hour session cookie. Issuer/client are env-configurable (`OIDC_*`), so switching to Okta later is configuration, not code. No auto-provisioning: sign-in requires an existing active `users` row, and roles are read from the database, never from IdP claims. The `dev` provider still refuses production, and the signed-header `sso` adapter is retained as an alternative.
+- **Justification:** Removes the proxy dependency (the last deploy blocker), uses an IdP every employee already has, and keeps all route enforcement (`requireUser`/`requireRole`) provider-independent.
+- **Tradeoffs:** Needs a Google Cloud OAuth client per environment and a `SESSION_SECRET`; id_token signature verification relies on the TLS-authenticated token endpoint rather than JWKS (acceptable for a confidential client receiving tokens directly from the issuer; JWKS verification is a hardening candidate). If IT later standardizes on Okta, the OIDC_* switch must be scheduled.
+- **Revisit trigger:** IT/security standardizes internal-tool SSO on Okta, or a requirement emerges for JWKS signature verification / refresh-token sessions.
 
 ## 18. Browser side panel as the primary one-off adoption surface
 

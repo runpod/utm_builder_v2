@@ -29,8 +29,11 @@ Requirements regardless of provider:
 | Variable | Environment | Value | Notes |
 |---|---|---|---|
 | `DATABASE_URL` | Production, Preview | `postgres://user:pass@host:5432/db` | Required in production. When unset, the app falls back to embedded PGlite — local dev only, never acceptable on Vercel. |
-| `AUTH_PROVIDER` | Production, Preview | `sso` | The dev provider unconditionally refuses to run in a production build; Vercel Preview deployments therefore require SSO too. |
-| `SSO_HEADER_SECRET` | Production, Preview | `<independent long random secret per environment>` | Shared only with the approved identity-aware proxy. Never expose it to clients or reuse the Production value in Preview. |
+| `AUTH_PROVIDER` | Production, Preview | `google` | Recommended production provider (decision 2026-09-06). The dev provider unconditionally refuses to run in a production build, so Preview needs a real provider too. `oidc` (any OIDC IdP, e.g. Okta) and `sso` (signed-header proxy) remain supported alternatives. |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Production, Preview | `<Google Workspace OAuth client>` | OAuth 2.0 Web application client created in a Runpod-owned Google Cloud project; authorized redirect URI is `<APP_URL>/api/auth/callback` (one per environment). |
+| `SESSION_SECRET` | Production, Preview | `<32+ char random secret per environment>` | Signs the login session cookie (12h TTL). `openssl rand -hex 32`; never reuse across environments. |
+| `OIDC_ISSUER` / `OIDC_CLIENT_ID` / `OIDC_CLIENT_SECRET` / `OIDC_ALLOWED_EMAIL_DOMAINS` | Optional | — | Generic OIDC overrides. Point at Okta (or another IdP) later without code changes; defaults are Google + `runpod.io`. |
+| `SSO_HEADER_SECRET` | Only with `AUTH_PROVIDER=sso` | `<independent long random secret per environment>` | Shared only with the approved identity-aware proxy. Never expose it to clients or reuse the Production value in Preview. |
 | `OUTBOX_PROCESS_TOKEN` | Production, Preview | `<long random secret>` | Bearer token protecting `/api/outbox/process`. Required — the route rejects everything when no token is configured. |
 | `CRON_SECRET` | Production | `<long random secret>` | Vercel automatically sends this as `Authorization: Bearer` on both scheduled routes. |
 | `SOURCE_SYNC_TOKEN` | Production, Preview | `<long random secret>` | Optional separate operator token for manually invoking `/api/source-sync`; the route also accepts `CRON_SECRET`. |
@@ -46,9 +49,21 @@ Requirements regardless of provider:
 
 Reference: `.env.example`.
 
-## 4. SSO integration contract
+## 4. Sign-in providers
 
-The application includes a fail-closed signed-principal SSO adapter. An approved identity-aware proxy must authenticate the user and overwrite these headers before traffic reaches the application:
+### 4a. Google OAuth / OIDC (recommended, decision 2026-09-06)
+
+`AUTH_PROVIDER=google` runs the authorization-code flow directly in the app — no identity proxy is required:
+
+1. In a Runpod-owned Google Cloud project, create an **OAuth 2.0 Client ID** (type: Web application). Authorized redirect URI: `<APP_URL>/api/auth/callback`. Use separate clients (or at least separate redirect URIs) for Production and Preview.
+2. Set `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `SESSION_SECRET`, and `APP_URL`.
+3. Sign-in is restricted to verified `@runpod.io` accounts (`OIDC_ALLOWED_EMAIL_DOMAINS`) and to emails that already exist as **active rows in `users`** — there is no auto-provisioning, and roles are always read from the database, never from Google claims. Sign-ins are audited (`auth.signed_in`).
+4. Sessions are HMAC-signed, `httpOnly`, `SameSite=Lax`, `Secure` cookies with a 12-hour TTL; sign-out clears the cookie.
+5. To switch to Okta (or any OIDC IdP) later, set `OIDC_ISSUER`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET` — no code change.
+
+### 4b. Signed-header proxy (alternative)
+
+The application also retains a fail-closed signed-principal SSO adapter for deployments behind an identity-aware proxy. An approved identity-aware proxy must authenticate the user and overwrite these headers before traffic reaches the application:
 
 - `x-runpod-auth-email`: verified work email, normalized to lowercase
 - `x-runpod-auth-timestamp`: current Unix timestamp in seconds

@@ -108,6 +108,30 @@ export function Nav() {
     }
   }, []);
 
+  const signOut = useCallback(async () => {
+    setSwitching(true);
+    try {
+      await api("/api/auth/logout", { method: "POST" });
+    } finally {
+      window.location.href = "/";
+    }
+  }, []);
+
+  const isOidc = authProvider === "google" || authProvider === "oidc";
+  // Surface coarse sign-in errors passed back from the OIDC callback.
+  const authErrorCode =
+    typeof window !== "undefined"
+      ? new URLSearchParams(window.location.search).get("auth_error")
+      : null;
+  const authErrorText =
+    authErrorCode === "no_account"
+      ? "Your Google account is not provisioned in the UTM registry. Ask an administrator to add you."
+      : authErrorCode === "domain_not_allowed"
+        ? "Sign-in is restricted to Runpod work accounts."
+        : authErrorCode
+          ? "Sign-in failed. Try again or contact an administrator."
+          : "";
+
   const visibleNavItems = NAV_ITEMS.filter(([, , capability]) => !capability || capabilities[capability]);
 
   const identities = session && !DEV_IDENTITIES.includes(session.email)
@@ -134,6 +158,14 @@ export function Nav() {
         <div className="identity">
           {loading ? (
             <span aria-live="polite">Loading identity…</span>
+          ) : session && isOidc ? (
+            <>
+              <span className="role-chip">{session.role}</span>
+              <span>{session.email}</span>
+              <button type="button" className="btn-small" disabled={switching} onClick={() => void signOut()}>
+                Sign out
+              </button>
+            </>
           ) : session ? (
             <>
               <span className="role-chip">{session.role}</span>
@@ -152,6 +184,17 @@ export function Nav() {
                   </option>
                 ))}
               </select>
+            </>
+          ) : isOidc ? (
+            <>
+              {authErrorText ? (
+                <span role="alert" className="small" style={{ color: "var(--err)" }}>
+                  {authErrorText}
+                </span>
+              ) : null}
+              <a className="btn-small" href="/api/auth/login">
+                Sign in with Google
+              </a>
             </>
           ) : authProvider === "dev" ? (
             <>
