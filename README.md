@@ -2,6 +2,8 @@
 
 Internal tool for issuing governed campaign URLs. Campaign managers create one link or a bulk batch; every link is recorded in a single authoritative registry with stable reporting identifiers, duplicate protection, and immutable audit records.
 
+Canonical repository: [runpod/utm_builder_v2](https://github.com/runpod/utm_builder_v2)
+
 ## Why it exists
 
 Ad-hoc UTM tagging produces unjoinable campaign names, silent duplicates, and reports built on substring matching. V2 replaces that with:

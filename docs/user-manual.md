@@ -14,7 +14,7 @@ Audience: campaign managers and anyone issuing governed campaign URLs.
 ## 2. Creating a single link
 
 1. **Search, then pick (or create) the campaign.** Links cannot be issued without a canonical campaign. The campaign supplies `utm_id` (its `rpc_` ID) and `utm_campaign` (its canonical slug); you do not type either. When a spacing/punctuation variant already exists, creation returns a candidate to reuse. Only an administrator can create a genuinely separate campaign, and must record why.
-2. **Pick a preset** (defaults to `generic`). Presets can pre-fill `utm_source`/`utm_medium` and may require extra fields (e.g. Google Ads, LinkedIn, Meta, and HubSpot/Email require `utm_content`).
+2. **Pick a preset** (defaults to `generic`). Presets can pre-fill `utm_source`/`utm_medium` and may require extra fields (e.g. Google Ads, LinkedIn, X Ads, Meta, and HubSpot/Email require `utm_content`).
 3. **Enter the destination.** Bare domains, `www.` hosts, and `http://` URLs are accepted and normalized to HTTPS. Any query params or fragment you include are preserved — except governed params, which are replaced.
 4. **Enter source / medium / content / term.** Source and medium must exist in the governed taxonomy (aliases are accepted with a warning and resolved to the canonical value).
 5. **Preview.** The preview (`POST /api/links/preview`) is a dry run: it validates, checks for duplicates, and shows the final URL with a placeholder link ID (`rpl_PREVIEW`). It never writes anything.
@@ -77,6 +77,8 @@ Seeded presets (all editable by admins):
 | `generic` | url | — | — | verified |
 | `google_ads` | url | `google-ads` / `paid` | `utm_content` | draft |
 | `linkedin` | url | `linkedin-paid` / `paid` | `utm_content` | draft |
+| `x_organic` | url | `twitter-organic` / `organic` | — | draft |
+| `x_paid` | url | `twitter-paid` / `paid` | `utm_content` | draft |
 | `meta` | url | `facebook-paid` / `paid` | `utm_content` | draft |
 | `reddit` | url | `reddit-paid` / `paid` | — | draft |
 | `cm360` | tracking_template | `programmatic` / `paid` | — | draft |
@@ -84,6 +86,7 @@ Seeded presets (all editable by admins):
 | `event_qr` | qr_target | — / `event` | — | verified |
 
 - Preset defaults fill blanks; anything you type explicitly wins.
+- X keeps the historical canonical sources `twitter-organic` and `twitter-paid`; `x-organic` and `x-paid` remain accepted aliases that normalize to those values.
 - Presets whitelist **macros** (e.g. `{keyword}` for Google Ads, `{{ad.id}}` for Meta). Using a macro the preset doesn't support is a blocking error.
 - A `draft` preset issues links with a warning: it has not been verified against current platform documentation. A `deprecated` preset blocks issuance.
 

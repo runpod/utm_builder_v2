@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { desc, eq } from "drizzle-orm";
 import type { Db } from "@/db/client";
-import { auditEvents, links } from "@/db/schema";
+import { auditEvents, links, platformPresets } from "@/db/schema";
 import type { SessionUser } from "@/services/auth";
 import { createCampaign } from "@/services/campaigns";
 import { getConfig, updateSetting } from "@/services/config";
@@ -72,6 +72,34 @@ describe("configuration versioning", () => {
 });
 
 describe("taxonomy governance", () => {
+  it("seeds separate X organic and paid presets with historical canonical sources", async () => {
+    const presets = await db.select().from(platformPresets);
+    const xPresets = presets
+      .filter((preset) => preset.key === "x_organic" || preset.key === "x_paid")
+      .map((preset) => ({
+        key: preset.key,
+        defaults: preset.defaults,
+        requiredFields: preset.requiredFields,
+        verificationState: preset.verificationState,
+      }))
+      .sort((a, b) => a.key.localeCompare(b.key));
+
+    expect(xPresets).toEqual([
+      {
+        key: "x_organic",
+        defaults: { utm_medium: "organic", utm_source: "twitter-organic" },
+        requiredFields: [],
+        verificationState: "draft",
+      },
+      {
+        key: "x_paid",
+        defaults: { utm_medium: "paid", utm_source: "twitter-paid" },
+        requiredFields: ["utm_content"],
+        verificationState: "draft",
+      },
+    ]);
+  });
+
   it("new links respect newly disabled sources without touching issued links", async () => {
     const campaign = await createCampaign(db, admin, { name: "Tax" });
     const { link } = await issueLink(db, user, {
