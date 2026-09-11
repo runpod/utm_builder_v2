@@ -154,6 +154,16 @@ async function bearerProvider(req: Request): Promise<ApiSessionUser | null> {
   };
 }
 
+/**
+ * POC login provider: same signed-session-cookie verification as OIDC, but the
+ * cookie is minted by a simple email sign-in (see /api/auth/poc-login) instead
+ * of Google. Intended only for gated proof-of-concept deployments; switching
+ * AUTH_PROVIDER to "google" restores real IdP sign-in with no other change.
+ */
+export function pocAuthEnabled(): boolean {
+  return (process.env.AUTH_PROVIDER ?? "dev") === "poc";
+}
+
 /** Google/OIDC provider: verified HMAC session cookie → users row. */
 async function oidcSessionProvider(req?: Request): Promise<SessionUser | null> {
   const { SESSION_COOKIE, verifySessionCookieValue } = await import("./oidc");
@@ -181,10 +191,12 @@ async function oidcSessionProvider(req?: Request): Promise<SessionUser | null> {
 export async function getSession(req?: Request): Promise<SessionUser | ApiSessionUser | null> {
   if (req?.headers.get("authorization")) return bearerProvider(req);
   const provider = process.env.AUTH_PROVIDER ?? "dev";
-  if (provider === "google" || provider === "oidc") return oidcSessionProvider(req);
+  if (provider === "google" || provider === "oidc" || provider === "poc") {
+    return oidcSessionProvider(req);
+  }
   if (provider === "sso") return ssoProvider(req);
   if (provider === "dev") return devProvider();
-  throw new AuthError(401, "AUTH_PROVIDER is invalid. Use dev, google, oidc, or sso.");
+  throw new AuthError(401, "AUTH_PROVIDER is invalid. Use dev, google, oidc, poc, or sso.");
 }
 
 export function capabilitiesFor(actor: SessionUser | null): SessionCapabilities {

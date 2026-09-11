@@ -118,6 +118,20 @@ export function Nav() {
   }, []);
 
   const isOidc = authProvider === "google" || authProvider === "oidc";
+  const isPoc = authProvider === "poc";
+  const [pocEmail, setPocEmail] = useState("");
+  const pocSignIn = useCallback(async () => {
+    if (!pocEmail.trim()) return;
+    setSwitching(true);
+    setSwitchError("");
+    try {
+      await api("/api/auth/poc-login", { method: "POST", body: JSON.stringify({ email: pocEmail.trim() }) });
+      window.location.reload();
+    } catch (err) {
+      setSwitchError(errText(err));
+      setSwitching(false);
+    }
+  }, [pocEmail]);
   // Surface coarse sign-in errors passed back from the OIDC callback.
   const authErrorCode =
     typeof window !== "undefined"
@@ -158,7 +172,7 @@ export function Nav() {
         <div className="identity">
           {loading ? (
             <span aria-live="polite">Loading identity…</span>
-          ) : session && isOidc ? (
+          ) : session && (isOidc || isPoc) ? (
             <>
               <span className="role-chip">{session.role}</span>
               <span>{session.email}</span>
@@ -195,6 +209,24 @@ export function Nav() {
               <a className="btn-small" href="/api/auth/login">
                 Sign in with Google
               </a>
+            </>
+          ) : isPoc ? (
+            <>
+              <span className="hint" style={{ margin: 0 }}>POC — sign in</span>
+              <input
+                type="email"
+                aria-label="Work email"
+                placeholder="you@runpod.io"
+                value={pocEmail}
+                disabled={switching}
+                onChange={(e) => setPocEmail(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") void pocSignIn();
+                }}
+              />
+              <button type="button" className="btn-small" disabled={switching} onClick={() => void pocSignIn()}>
+                Sign in
+              </button>
             </>
           ) : authProvider === "dev" ? (
             <>
