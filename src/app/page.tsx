@@ -7,7 +7,7 @@
  * renders what the API returns.
  */
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Badge, CopyButton, FindingList, Msg, useSession } from "./components";
 import {
   api,
@@ -16,6 +16,7 @@ import {
   qs,
   type Campaign,
   type CampaignDuplicateCandidate,
+  type CampaignPickerGroups,
   type Finding,
   type Initiative,
   type IssueResult,
@@ -24,6 +25,18 @@ import {
   type Taxonomy,
 } from "./lib";
 
+const EMPTY_CAMPAIGN_GROUPS: CampaignPickerGroups = {
+  recent: [],
+  mine: [],
+  initiative: [],
+};
+
+function mergeCampaigns(...lists: Campaign[][]): Campaign[] {
+  const byId = new Map<string, Campaign>();
+  for (const campaign of lists.flat()) byId.set(campaign.id, campaign);
+  return [...byId.values()];
+}
+
 export default function BuilderPage() {
   const { session, capabilities } = useSession();
   const isAdmin = session?.role === "admin";
@@ -31,7 +44,13 @@ export default function BuilderPage() {
 
   // Reference data
   const [initiatives, setInitiatives] = useState<Initiative[]>([]);
-  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [campaignGroups, setCampaignGroups] = useState<CampaignPickerGroups>(EMPTY_CAMPAIGN_GROUPS);
+  const [knownCampaigns, setKnownCampaigns] = useState<Campaign[]>([]);
+  const [campaignsLoading, setCampaignsLoading] = useState(false);
+  const [campaignSearchOpen, setCampaignSearchOpen] = useState(false);
+  const [campaignSearch, setCampaignSearch] = useState("");
+  const [campaignSearchResults, setCampaignSearchResults] = useState<Campaign[]>([]);
+  const [campaignSearchLoading, setCampaignSearchLoading] = useState(false);
   const [taxonomy, setTaxonomy] = useState<Taxonomy>({ mediums: [], sources: [] });
   const [presets, setPresets] = useState<Preset[]>([]);
   const [loadError, setLoadError] = useState("");
@@ -77,9 +96,24 @@ export default function BuilderPage() {
   const [reuseStatus, setReuseStatus] = useState("");
   const [reusedUrl, setReusedUrl] = useState("");
 
-  const loadCampaigns = useCallback(async () => {
-    const d = await api<{ campaigns: Campaign[] }>("/api/campaigns");
-    setCampaigns(d.campaigns);
+  const campaignLoadSeq = useRef(0);
+  const loadCampaignGroups = useCallback(async (selectedInitiativeId: string) => {
+    const seq = ++campaignLoadSeq.current;
+    setCampaignsLoading(true);
+    try {
+      const d = await api<{ groups: CampaignPickerGroups }>(
+        `/api/campaigns${qs({ view: "picker", initiativeId: selectedInitiativeId })}`,
+      );
+      if (campaignLoadSeq.current !== seq) return;
+      setCampaignGroups(d.groups);
+      setKnownCampaigns((cur) =>
+        mergeCampaigns(cur, d.groups.recent, d.groups.mine, d.groups.initiative),
+      );
+    } catch (err) {
+      if (campaignLoadSeq.current === seq) setLoadError(errText(err));
+    } finally {
+      if (campaignLoadSeq.current === seq) setCampaignsLoading(false);
+    }
   }, []);
 
   useEffect(() => {
@@ -93,17 +127,73 @@ export default function BuilderPage() {
         setInitiatives(ini.initiatives);
         setTaxonomy(tax);
         setPresets(pre.presets);
-        await loadCampaigns();
       } catch (err) {
         setLoadError(errText(err));
       }
     })();
-  }, [loadCampaigns]);
+  }, []);
+
+  useEffect(() => {
+    void loadCampaignGroups(initiativeId);
+  }, [initiativeId, loadCampaignGroups]);
+
+  useEffect(() => {
+    if (!campaignSearchOpen || !campaignSearch.trim()) {
+      setCampaignSearchResults([]);
+      setCampaignSearchLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setCampaignSearchResults([]);
+    setCampaignSearchLoading(true);
+    const t = window.setTimeout(async () => {
+      try {
+        const d = await api<{ campaigns: Campaign[] }>(
+          `/api/campaigns${qs({ q: campaignSearch.trim() })}`,
+        );
+        if (!cancelled) {
+          setCampaignSearchResults(d.campaigns);
+          setKnownCampaigns((cur) => mergeCampaigns(cur, d.campaigns));
+        }
+      } catch (err) {
+        if (!cancelled) setLoadError(errText(err));
+      } finally {
+        if (!cancelled) setCampaignSearchLoading(false);
+      }
+    }, 250);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(t);
+    };
+  }, [campaignSearch, campaignSearchOpen]);
 
   const selectedPreset = presets.find((p) => p.key === presetKey) ?? null;
-  const visibleCampaigns = initiativeId
-    ? campaigns.filter((c) => c.initiativeId === initiativeId)
-    : campaigns;
+  const selectedCampaign = knownCampaigns.find((campaign) => campaign.id === campaignId) ?? null;
+  const campaignOptionGroups = useMemo(() => {
+    const searching = campaignSearchOpen && Boolean(campaignSearch.trim());
+    const source = searching
+      ? [{ label: "Search all campaigns", campaigns: campaignSearchResults }]
+      : [
+          { label: "Recent campaigns", campaigns: campaignGroups.recent },
+          { label: "My campaigns", campaigns: campaignGroups.mine },
+          ...(initiativeId
+            ? [{ label: "This initiative", campaigns: campaignGroups.initiative }]
+            : []),
+        ];
+    const seen = new Set<string>();
+    const groups = source.map((group) => ({
+      ...group,
+      campaigns: group.campaigns.filter((campaign) => {
+        if (seen.has(campaign.id)) return false;
+        seen.add(campaign.id);
+        return true;
+      }),
+    }));
+    if (selectedCampaign && !seen.has(selectedCampaign.id)) {
+      groups.unshift({ label: "Selected campaign", campaigns: [selectedCampaign] });
+    }
+    return groups;
+  }, [campaignGroups, campaignSearch, campaignSearchOpen, campaignSearchResults, initiativeId, selectedCampaign]);
   const activeMediums = taxonomy.mediums.filter((m) => m.status === "active");
   const visibleSources = taxonomy.sources.filter(
     (s) => s.status === "active" && (!medium || s.mediumSlug === medium),
@@ -180,6 +270,13 @@ export default function BuilderPage() {
       });
       setInitiatives((cur) => [...cur, d.initiative]);
       setInitiativeId(d.initiative.id);
+      setCampaignId((currentCampaignId) => {
+        if (!currentCampaignId) return "";
+        return knownCampaigns.find((campaign) => campaign.id === currentCampaignId)?.initiativeId ===
+          d.initiative.id
+          ? currentCampaignId
+          : "";
+      });
       setNewInitiativeName("");
       setShowNewInitiative(false);
     } catch (err) {
@@ -187,7 +284,7 @@ export default function BuilderPage() {
     } finally {
       setCreatingInitiative(false);
     }
-  }, [newInitiativeName]);
+  }, [knownCampaigns, newInitiativeName]);
 
   const createCampaign = useCallback(async (withOverride = false) => {
     if (!newCampaignName.trim()) {
@@ -209,7 +306,8 @@ export default function BuilderPage() {
             : {}),
         }),
       });
-      await loadCampaigns();
+      setKnownCampaigns((cur) => mergeCampaigns(cur, [d.campaign]));
+      await loadCampaignGroups(initiativeId);
       setCampaignId(d.campaign.id);
       setNewCampaignName("");
       setNewCampaignSlug("");
@@ -224,7 +322,24 @@ export default function BuilderPage() {
     } finally {
       setCreatingCampaign(false);
     }
-  }, [newCampaignName, newCampaignSlug, initiativeId, campaignDuplicateReason, loadCampaigns]);
+  }, [newCampaignName, newCampaignSlug, initiativeId, campaignDuplicateReason, loadCampaignGroups]);
+
+  const chooseInitiative = useCallback((nextInitiativeId: string) => {
+    setInitiativeId(nextInitiativeId);
+    setCampaignId((currentCampaignId) => {
+      if (!currentCampaignId || !nextInitiativeId) return currentCampaignId;
+      const campaign = knownCampaigns.find((candidate) => candidate.id === currentCampaignId);
+      return campaign?.initiativeId === nextInitiativeId ? currentCampaignId : "";
+    });
+  }, [knownCampaigns]);
+
+  const chooseCampaign = useCallback((nextCampaignId: string) => {
+    setCampaignId(nextCampaignId);
+    const campaign = knownCampaigns.find((candidate) => candidate.id === nextCampaignId);
+    if (campaign && campaign.initiativeId !== initiativeId) {
+      setInitiativeId(campaign.initiativeId ?? "");
+    }
+  }, [initiativeId, knownCampaigns]);
 
   const submit = useCallback(
     async (status: "draft" | "issued", withOverride = false) => {
@@ -307,10 +422,7 @@ export default function BuilderPage() {
             <select
               id="initiative"
               value={initiativeId}
-              onChange={(e) => {
-                setInitiativeId(e.target.value);
-                setCampaignId("");
-              }}
+              onChange={(e) => chooseInitiative(e.target.value)}
             >
               <option value="">All initiatives</option>
               {initiatives.map((i) => (
@@ -354,18 +466,69 @@ export default function BuilderPage() {
 
           <div className="field">
             <label htmlFor="campaign">Campaign</label>
-            <select id="campaign" value={campaignId} onChange={(e) => setCampaignId(e.target.value)}>
+            <select
+              id="campaign"
+              value={campaignId}
+              disabled={campaignsLoading && campaignOptionGroups.every((group) => group.campaigns.length === 0)}
+              onChange={(e) => chooseCampaign(e.target.value)}
+              aria-describedby="campaign-help"
+            >
               <option value="">Select a campaign…</option>
-              {visibleCampaigns.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name} ({c.utmCampaign})
-                </option>
-              ))}
+              {campaignOptionGroups.map((group) =>
+                group.campaigns.length ? (
+                  <optgroup key={group.label} label={group.label}>
+                    {group.campaigns.map((campaign) => (
+                      <option key={campaign.id} value={campaign.id}>
+                        {campaign.name} ({campaign.utmCampaign})
+                        {campaign.lifecycle === "completed" || campaign.lifecycle === "archived"
+                          ? ` — ${campaign.lifecycle}`
+                          : ""}
+                      </option>
+                    ))}
+                  </optgroup>
+                ) : null,
+              )}
             </select>
-            <p className="hint" style={{ margin: "0.2rem 0 0" }}>
-              Campaigns are never auto-created from a typed name — create one explicitly if it
-              does not exist yet.
+            <p id="campaign-help" className="hint" style={{ margin: "0.2rem 0 0" }}>
+              {campaignsLoading
+                ? "Loading active and upcoming campaigns…"
+                : "Showing active and upcoming campaigns. Completed and archived campaigns remain searchable."}
             </p>
+            {campaignSearchOpen ? (
+              <div className="campaign-search">
+                <input
+                  id="campaign-search"
+                  type="search"
+                  aria-label="Search all campaigns"
+                  placeholder="Search name, slug, or campaign ID…"
+                  value={campaignSearch}
+                  autoFocus
+                  onChange={(e) => setCampaignSearch(e.target.value)}
+                />
+                <button
+                  type="button"
+                  className="btn-small"
+                  onClick={() => setCampaignSearchOpen(false)}
+                >
+                  Close search
+                </button>
+                <span className="hint" aria-live="polite">
+                  {campaignSearchLoading
+                    ? "Searching…"
+                    : campaignSearch.trim() && campaignSearchResults.length === 0
+                      ? "No matching campaigns."
+                      : ""}
+                </span>
+              </div>
+            ) : (
+              <button
+                type="button"
+                className="btn-link small"
+                onClick={() => setCampaignSearchOpen(true)}
+              >
+                Search all campaigns…
+              </button>
+            )}
             {capabilities.canCreateCampaign ? (
               <button
                 type="button"

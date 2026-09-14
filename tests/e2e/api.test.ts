@@ -79,6 +79,17 @@ describe("API end-to-end", () => {
     campaignId = (await created.json()).campaign.id;
     expect(campaignId).toMatch(/^rpc_/);
 
+    const picker = await campaignsRoute.GET(
+      jsonRequest("/api/campaigns?view=picker", "GET"),
+    );
+    expect((await picker.json()).groups.mine.map((campaign: { id: string }) => campaign.id))
+      .toContain(campaignId);
+    const search = await campaignsRoute.GET(
+      jsonRequest("/api/campaigns?q=e2e", "GET"),
+    );
+    expect((await search.json()).campaigns.map((campaign: { id: string }) => campaign.id))
+      .toContain(campaignId);
+
     const linksRoute = await import("@/app/api/links/route");
     const issued = await linksRoute.POST(
       jsonRequest("/api/links", "POST", {

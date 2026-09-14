@@ -62,6 +62,12 @@ export interface Campaign {
   updatedAt: string;
 }
 
+export interface CampaignPickerGroups {
+  recent: Campaign[];
+  mine: Campaign[];
+  initiative: Campaign[];
+}
+
 export interface CampaignDuplicateCandidate {
   id: string;
   name: string;
