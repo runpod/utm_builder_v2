@@ -175,8 +175,23 @@ export async function updateCampaign(
     const ownerId = patch.ownerId !== undefined
       ? await resolveRecordOwner(tx as Db, actor, patch.ownerId, before.ownerId ?? before.createdBy)
       : before.ownerId;
+    const initiativeId = patch.initiativeId !== undefined
+      ? patch.initiativeId?.trim() || null
+      : before.initiativeId;
+    const initiativeChanged = initiativeId !== before.initiativeId;
+    if (initiativeId) {
+      if (!isValidId("initiative", initiativeId)) throw new Error("Invalid initiative ID.");
+      const target = await tx
+        .select({ id: initiatives.id })
+        .from(initiatives)
+        .where(eq(initiatives.id, initiativeId));
+      if (target.length === 0) throw new Error("Initiative not found.");
+    }
     if (ownerId !== before.ownerId && !reason?.trim()) {
       throw new Error("A reason is required to transfer campaign ownership.");
+    }
+    if (initiativeChanged && !reason?.trim()) {
+      throw new Error("A reason is required to change a campaign's initiative assignment.");
     }
     // The canonical ID and utm_campaign slug are immutable after creation;
     // metadata (name, owner, dates, lifecycle) may change freely.
@@ -184,7 +199,7 @@ export async function updateCampaign(
       .update(campaigns)
       .set({
         name: patch.name?.trim() || before.name,
-        initiativeId: patch.initiativeId !== undefined ? patch.initiativeId : before.initiativeId,
+        initiativeId,
         ownerId,
         product: patch.product !== undefined ? patch.product : before.product,
         campaignType: patch.campaignType !== undefined ? patch.campaignType : before.campaignType,
@@ -202,7 +217,11 @@ export async function updateCampaign(
       idempotencyKey: `warehouse.snapshot.campaign:${row.id}:${row.updatedAt.toISOString()}`,
     });
     await recordAudit(tx, actor, {
-      action: ownerId !== before.ownerId ? "campaign.owner_transferred" : "campaign.updated",
+      action: ownerId !== before.ownerId
+        ? "campaign.owner_transferred"
+        : initiativeChanged
+          ? "campaign.initiative_reassigned"
+          : "campaign.updated",
       entityType: "campaign",
       entityId: id,
       before,

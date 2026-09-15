@@ -78,6 +78,12 @@ export default function BuilderPage() {
   const [creatingCampaign, setCreatingCampaign] = useState(false);
   const [campaignDuplicates, setCampaignDuplicates] = useState<CampaignDuplicateCandidate[]>([]);
   const [campaignDuplicateReason, setCampaignDuplicateReason] = useState("");
+  const [showCampaignAssignment, setShowCampaignAssignment] = useState(false);
+  const [campaignAssignmentInitiativeId, setCampaignAssignmentInitiativeId] = useState("");
+  const [campaignAssignmentReason, setCampaignAssignmentReason] = useState("");
+  const [campaignAssignmentError, setCampaignAssignmentError] = useState("");
+  const [campaignAssignmentNotice, setCampaignAssignmentNotice] = useState("");
+  const [savingCampaignAssignment, setSavingCampaignAssignment] = useState(false);
 
   // Preview state
   const [preview, setPreview] = useState<PreviewResult | null>(null);
@@ -169,6 +175,21 @@ export default function BuilderPage() {
 
   const selectedPreset = presets.find((p) => p.key === presetKey) ?? null;
   const selectedCampaign = knownCampaigns.find((campaign) => campaign.id === campaignId) ?? null;
+  const selectedInitiative = initiatives.find((initiative) => initiative.id === initiativeId) ?? null;
+  const selectedCampaignInitiative = initiatives.find(
+    (initiative) => initiative.id === selectedCampaign?.initiativeId,
+  ) ?? null;
+  const campaignInitiativeMismatch = Boolean(
+    initiativeId && selectedCampaign && selectedCampaign.initiativeId !== initiativeId,
+  );
+  const canManageSelectedCampaign = Boolean(
+    session &&
+      selectedCampaign &&
+      session.role !== "investigator" &&
+      (session.role === "admin" ||
+        selectedCampaign.createdBy === session.id ||
+        selectedCampaign.ownerId === session.id),
+  );
   const campaignOptionGroups = useMemo(() => {
     const searching = campaignSearchOpen && Boolean(campaignSearch.trim());
     const source = searching
@@ -220,13 +241,13 @@ export default function BuilderPage() {
     setSubmitFindings([]);
     setReusedUrl("");
     setReuseStatus("");
-    if (!destination.trim()) {
+    const seq = ++previewSeq.current;
+    if (!destination.trim() || campaignInitiativeMismatch) {
       setPreview(null);
       setPreviewError("");
       setPreviewLoading(false);
       return;
     }
-    const seq = ++previewSeq.current;
     setPreviewLoading(true);
     const t = window.setTimeout(async () => {
       try {
@@ -254,7 +275,7 @@ export default function BuilderPage() {
       }
     }, 400);
     return () => window.clearTimeout(t);
-  }, [destination, campaignId, presetKey, source, medium, content, term]);
+  }, [destination, campaignId, presetKey, source, medium, content, term, campaignInitiativeMismatch]);
 
   const createInitiative = useCallback(async () => {
     if (!newInitiativeName.trim()) {
@@ -326,23 +347,80 @@ export default function BuilderPage() {
 
   const chooseInitiative = useCallback((nextInitiativeId: string) => {
     setInitiativeId(nextInitiativeId);
-    setCampaignId((currentCampaignId) => {
-      if (!currentCampaignId || !nextInitiativeId) return currentCampaignId;
-      const campaign = knownCampaigns.find((candidate) => candidate.id === currentCampaignId);
-      return campaign?.initiativeId === nextInitiativeId ? currentCampaignId : "";
-    });
-  }, [knownCampaigns]);
+    setShowCampaignAssignment(false);
+    setCampaignAssignmentError("");
+    setCampaignAssignmentNotice("");
+  }, []);
 
   const chooseCampaign = useCallback((nextCampaignId: string) => {
     setCampaignId(nextCampaignId);
-    const campaign = knownCampaigns.find((candidate) => candidate.id === nextCampaignId);
-    if (campaign && campaign.initiativeId !== initiativeId) {
-      setInitiativeId(campaign.initiativeId ?? "");
+    setShowCampaignAssignment(false);
+    setCampaignAssignmentError("");
+    setCampaignAssignmentNotice("");
+  }, []);
+
+  const useCampaignInitiative = useCallback(() => {
+    if (!selectedCampaign) return;
+    setInitiativeId(selectedCampaign.initiativeId ?? "");
+    setShowCampaignAssignment(false);
+    setCampaignAssignmentError("");
+    setCampaignAssignmentNotice("");
+  }, [selectedCampaign]);
+
+  const openCampaignAssignment = useCallback(() => {
+    if (!selectedCampaign) return;
+    setCampaignAssignmentInitiativeId(
+      campaignInitiativeMismatch ? initiativeId : selectedCampaign.initiativeId ?? "",
+    );
+    setCampaignAssignmentReason("");
+    setCampaignAssignmentError("");
+    setCampaignAssignmentNotice("");
+    setShowCampaignAssignment(true);
+  }, [campaignInitiativeMismatch, initiativeId, selectedCampaign]);
+
+  const saveCampaignAssignment = useCallback(async () => {
+    if (!selectedCampaign || !campaignAssignmentReason.trim()) return;
+    setSavingCampaignAssignment(true);
+    setCampaignAssignmentError("");
+    setCampaignAssignmentNotice("");
+    try {
+      const result = await api<{ campaign: Campaign }>(`/api/campaigns/${selectedCampaign.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          initiativeId: campaignAssignmentInitiativeId || null,
+          reason: campaignAssignmentReason.trim(),
+        }),
+      });
+      setKnownCampaigns((current) => mergeCampaigns(current, [result.campaign]));
+      setInitiativeId(result.campaign.initiativeId ?? "");
+      await loadCampaignGroups(result.campaign.initiativeId ?? "");
+      const assignedInitiative = initiatives.find(
+        (initiative) => initiative.id === result.campaign.initiativeId,
+      );
+      setCampaignAssignmentNotice(
+        `Campaign assignment updated to ${assignedInitiative?.name ?? "Standalone"}.`,
+      );
+      setCampaignAssignmentReason("");
+      setShowCampaignAssignment(false);
+    } catch (err) {
+      setCampaignAssignmentError(errText(err));
+    } finally {
+      setSavingCampaignAssignment(false);
     }
-  }, [initiativeId, knownCampaigns]);
+  }, [
+    campaignAssignmentInitiativeId,
+    campaignAssignmentReason,
+    initiatives,
+    loadCampaignGroups,
+    selectedCampaign,
+  ]);
 
   const submit = useCallback(
     async (status: "draft" | "issued", withOverride = false) => {
+      if (campaignInitiativeMismatch) {
+        setSubmitError("Resolve the campaign's initiative assignment before continuing.");
+        return;
+      }
       setSubmitting(status);
       setSubmitError("");
       setSubmitFindings([]);
@@ -376,7 +454,7 @@ export default function BuilderPage() {
         setSubmitting("");
       }
     },
-    [destination, campaignId, presetKey, source, medium, content, term, overrideReason],
+    [destination, campaignId, presetKey, source, medium, content, term, overrideReason, campaignInitiativeMismatch],
   );
 
   const reuseExisting = useCallback(async (linkId: string, finalUrl: string) => {
@@ -538,6 +616,106 @@ export default function BuilderPage() {
                 {showNewCampaign ? "Cancel new campaign" : "+ Create campaign"}
               </button>
             ) : null}
+            {selectedCampaign ? (
+              <>
+                {campaignInitiativeMismatch ? (
+                  <div className="duplicate-warning">
+                    <p><strong>Campaign is assigned elsewhere</strong></p>
+                    <p>
+                      {selectedCampaign.name} is assigned to{" "}
+                      <strong>{selectedCampaignInitiative?.name ?? "Standalone"}</strong>, not{" "}
+                      <strong>{selectedInitiative?.name ?? "the selected initiative"}</strong>.
+                      Choose its current assignment or explicitly reassign the campaign before continuing.
+                    </p>
+                    <div className="btn-row">
+                      <button type="button" className="btn-small" onClick={useCampaignInitiative}>
+                        {selectedCampaign.initiativeId
+                          ? `Use ${selectedCampaignInitiative?.name ?? "campaign initiative"}`
+                          : "Use as standalone"}
+                      </button>
+                      {canManageSelectedCampaign ? (
+                        <button type="button" className="btn-small" onClick={openCampaignAssignment}>
+                          Change initiative assignment
+                        </button>
+                      ) : null}
+                    </div>
+                    {!canManageSelectedCampaign ? (
+                      <p className="small">
+                        Only the campaign creator, owner, or an administrator can change this assignment.
+                      </p>
+                    ) : null}
+                  </div>
+                ) : (
+                  <p className="small" style={{ margin: "0.4rem 0 0" }}>
+                    Assigned to: <strong>{selectedCampaignInitiative?.name ?? "Standalone"}</strong>
+                    {canManageSelectedCampaign ? (
+                      <>
+                        {" · "}
+                        <button type="button" className="btn-link small" onClick={openCampaignAssignment}>
+                          Change assignment
+                        </button>
+                      </>
+                    ) : null}
+                  </p>
+                )}
+                <Msg kind="success">{campaignAssignmentNotice}</Msg>
+                {showCampaignAssignment && canManageSelectedCampaign ? (
+                  <div className="inline-form">
+                    <div className="field">
+                      <label htmlFor="campaign-assignment-initiative">New initiative assignment</label>
+                      <select
+                        id="campaign-assignment-initiative"
+                        value={campaignAssignmentInitiativeId}
+                        onChange={(event) => setCampaignAssignmentInitiativeId(event.target.value)}
+                      >
+                        <option value="">Standalone (no initiative)</option>
+                        {initiatives.map((initiative) => (
+                          <option key={initiative.id} value={initiative.id}>{initiative.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="field">
+                      <label htmlFor="campaign-assignment-reason">Reason (required and audited)</label>
+                      <input
+                        id="campaign-assignment-reason"
+                        value={campaignAssignmentReason}
+                        onChange={(event) => setCampaignAssignmentReason(event.target.value)}
+                        placeholder="Why is this campaign moving?"
+                      />
+                    </div>
+                    <p className="hint">
+                      Future links will use the new initiative. Existing links keep their recorded initiative.
+                    </p>
+                    <div className="btn-row">
+                      <button
+                        type="button"
+                        className="btn-primary btn-small"
+                        disabled={
+                          savingCampaignAssignment ||
+                          !campaignAssignmentReason.trim() ||
+                          (campaignAssignmentInitiativeId || null) === selectedCampaign.initiativeId
+                        }
+                        onClick={() => void saveCampaignAssignment()}
+                      >
+                        {savingCampaignAssignment ? "Saving…" : "Save assignment"}
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-small"
+                        disabled={savingCampaignAssignment}
+                        onClick={() => {
+                          setShowCampaignAssignment(false);
+                          setCampaignAssignmentError("");
+                        }}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                    <Msg kind="error">{campaignAssignmentError}</Msg>
+                  </div>
+                ) : null}
+              </>
+            ) : null}
             {showNewCampaign ? (
               <div className="inline-form">
                 <div className="field">
@@ -693,7 +871,13 @@ export default function BuilderPage() {
           <div className="btn-row">
             <button
               type="button"
-              disabled={!canWrite || submitting !== "" || !destination.trim() || !campaignId}
+              disabled={
+                !canWrite ||
+                submitting !== "" ||
+                !destination.trim() ||
+                !campaignId ||
+                campaignInitiativeMismatch
+              }
               onClick={() => void submit("draft")}
             >
               {submitting === "draft" ? "Saving…" : "Save draft"}
@@ -701,7 +885,13 @@ export default function BuilderPage() {
             <button
               type="button"
               className="btn-primary"
-              disabled={!capabilities.canIssue || submitting !== "" || !destination.trim() || !campaignId}
+              disabled={
+                !capabilities.canIssue ||
+                submitting !== "" ||
+                !destination.trim() ||
+                !campaignId ||
+                campaignInitiativeMismatch
+              }
               onClick={() => void submit("issued")}
             >
               {submitting === "issued" ? "Issuing…" : "Issue link"}

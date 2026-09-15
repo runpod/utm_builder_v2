@@ -61,6 +61,8 @@ Behavior:
 
 Rule of thumb: if you'd ever want a single rollup number for "the launch" across multiple campaigns, create the initiative first and attach campaigns to it.
 
+Each campaign can be assigned to at most one initiative. If the builder detects that the selected campaign belongs to a different initiative, it preserves both selections, blocks issuance, and asks you to resolve the mismatch explicitly. The campaign's creator, owner, or an administrator may change its initiative assignment with a required audit reason. Existing links keep the initiative recorded when they were issued; future links use the campaign's new assignment.
+
 ## 5. Reporting with exact IDs
 
 - **Campaign performance:** filter on **equality** of `utm_id` (= the `rpc_` campaign ID). This is GA4's native session campaign ID dimension.

@@ -103,3 +103,47 @@ describe("campaign picker discovery", () => {
     expect(archived.initiativeId).toBe(initiative.id);
   });
 });
+
+describe("campaign initiative assignment", () => {
+  it("requires a reason and records a dedicated audit event", async () => {
+    const original = await createInitiative(db, user, { name: "Original Initiative" });
+    const target = await createInitiative(db, user, { name: "Target Initiative" });
+    const campaign = await createCampaign(db, user, {
+      name: "Reassigned Campaign",
+      initiativeId: original.id,
+    });
+
+    await expect(
+      updateCampaign(db, user, campaign.id, { initiativeId: target.id }, null),
+    ).rejects.toThrow(/reason.*initiative assignment/i);
+
+    const updated = await updateCampaign(
+      db,
+      user,
+      campaign.id,
+      { initiativeId: target.id },
+      "This campaign belongs to the target event.",
+    );
+
+    expect(updated.initiativeId).toBe(target.id);
+    const [event] = await db
+      .select()
+      .from(auditEvents)
+      .where(eq(auditEvents.action, "campaign.initiative_reassigned"));
+    expect(event.entityId).toBe(campaign.id);
+    expect(event.reason).toBe("This campaign belongs to the target event.");
+    expect((event.before as { initiativeId: string }).initiativeId).toBe(original.id);
+    expect((event.after as { initiativeId: string }).initiativeId).toBe(target.id);
+  });
+
+  it("rejects invalid targets and unauthorized changes", async () => {
+    const campaign = await createCampaign(db, admin, { name: "Admin-owned Campaign" });
+
+    await expect(
+      updateCampaign(db, admin, campaign.id, { initiativeId: "not-an-initiative" }, "Correction"),
+    ).rejects.toThrow(/invalid initiative/i);
+    await expect(
+      updateCampaign(db, user, campaign.id, { initiativeId: null }, "Unauthorized move"),
+    ).rejects.toThrow(/creator.*owner.*administrator/i);
+  });
+});
