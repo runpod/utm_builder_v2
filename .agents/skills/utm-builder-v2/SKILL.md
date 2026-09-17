@@ -11,6 +11,7 @@ Treat the repository's implementation and documentation as the source of truth. 
 
 - For user workflows, terminology, picker behavior, campaign reassignment, presets, duplicates, and bulk issuance, read `../../../docs/user-manual.md`.
 - For live agent operations and MCP tool contracts, read `../../../docs/mcp.md`, then follow [the governed operation workflow](references/operate.md).
+- For installing, configuring, verifying, or troubleshooting this Codex skill and its optional MCP connection, read `../../../docs/codex-skill.md`.
 - For attribution, joins, GA4/PostHog, Snowflake/Mode, or recovery logic, read `../../../docs/reporting-contract.md`.
 - For Slack, API, administration, or deployment questions, read the matching file: `../../../docs/slack.md`, `../../../docs/api.md`, `../../../docs/admin-manual.md`, or `../../../docs/deployment-vercel.md`.
 - For code changes or diagnosis, inspect the relevant implementation and tests first. Start with `../../../src/services/links.ts`, `../../../src/services/campaigns.ts`, `../../../src/contracts/public-api.ts`, and `../../../src/mcp/server.ts` as applicable. Make the smallest safe change and run proportionate tests, type checks, and builds.

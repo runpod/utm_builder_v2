@@ -37,6 +37,7 @@ Use the smallest useful end-to-end pilot first: web + registry + approved taxono
 - Manifest V3 Chrome side panel: capture the current page or right-click a link, preview, issue, log, and copy without leaving the platform workflow
 - Supported `/api/v1` surface with bearer scopes, stable error envelopes, CORS allowlisting, OpenAPI, and idempotent single-link issuance
 - Authenticated remote MCP endpoint with read, preview, search, campaign/initiative creation, single issuance, and batch issuance tools
+- Repository-scoped Codex skill that routes users and agents to the current Builder rules, code, reporting contract, and safe MCP workflow
 - Shared **Runpod GTM Ops** Slack app: `/utm` and global shortcuts for previewed single issuance, CSV upload for 1–200 links, Slack identity mapping, signed-request verification, and direct-message batch results
 - GTM operating catalog for people, teams, agencies, vendors, systems, accounts, integrations, data definitions, measurement assets, reports, policies, and runbooks
 - Typed ownership and lineage relationships, readiness checks, and role-aware restricted-record visibility
@@ -53,6 +54,7 @@ All entry points use the same server-side generation and registry service, so va
 | **Chrome extension** | Creating a governed link while working in HubSpot, Google Ads, LinkedIn, Meta, Reddit, CM360, or another browser-based platform | Captures the current page or a selected link, then previews, issues, logs, and copies the URL from a Manifest V3 side panel without leaving the platform workflow |
 | **Versioned API** | Repeatable system integrations and automation | Supported `/api/v1` endpoints, scoped bearer tokens, stable error envelopes, OpenAPI documentation, CORS allowlisting, and idempotent issuance |
 | **MCP server** | Governed AI-assisted and conversational workflows | Authenticated tools for reference data, preview, search, campaign/initiative creation, and single or batch issuance; writes remain attributable to the user and normal audit trail |
+| **Codex skill** | Guided Builder questions, repository work, reporting guidance, and MCP-assisted operations | Project-specific instructions that travel with the repository; live registry actions still require a separately configured MCP connection and authorized Builder token |
 
 The Chrome extension, API, and MCP server do not contain separate UTM logic. They call the same preview and issuance service as the web app, preventing interface-specific rules or records from drifting apart.
 
@@ -153,6 +155,10 @@ No database setup required: with `DATABASE_URL` unset, the app auto-provisions a
 
 The dev auth provider (`AUTH_PROVIDER=dev`, the default) selects the identity from the `rp_dev_identity` cookie (set via `POST /api/session {"email": ...}`); it defaults to the dev admin and refuses to run in production. Deployed Preview and Production environments use `AUTH_PROVIDER=sso` with the signed-principal proxy contract in [the Vercel deployment guide](docs/deployment-vercel.md).
 
+### Codex skill setup
+
+The repository includes `$utm-builder-v2` under `.agents/skills`. Open this checkout in Codex to use it; no separate skill installation is required. The skill can explain or work on the repository without live access. To search, preview, or issue against a deployed registry, separately configure the GTM Data MCP and a scoped Builder token. See [the Codex skill installation and setup guide](docs/codex-skill.md).
+
 ## Commands
 
 | Command | What it does |
@@ -183,11 +189,11 @@ Health check: `GET /api/health` (checks API + database).
 | [docs/api.md](docs/api.md) | Developers: `/api/v1`, bearer scopes, idempotency, errors, examples |
 | [docs/browser-extension.md](docs/browser-extension.md) | Users/operators: extension workflow, installation, security, rollout |
 | [docs/mcp.md](docs/mcp.md) | AI-tool users/operators: MCP setup, tool safety, token rotation |
+| [docs/codex-skill.md](docs/codex-skill.md) | Codex users/operators: skill discovery, MCP connection, verification, security, and troubleshooting |
 | [docs/slack.md](docs/slack.md) | Slack users/admins: `/utm`, shortcuts, bulk CSV, identity, app manifest, rollout, and failure behavior |
 | [docs/gtm-data-mcp.md](docs/gtm-data-mcp.md) | GTM teams/AI users: complete catalog, ownership, lineage, dictionary, template, and tool model |
 | [docs/source-reconciliation.md](docs/source-reconciliation.md) | Administrators/operators: Notion scanning, proposals, authority, scheduling, and failure safety |
 | [docs/decisions.md](docs/decisions.md) | Everyone: architecture decision records and open decisions |
-| [.agents/skills/utm-builder-v2/SKILL.md](.agents/skills/utm-builder-v2/SKILL.md) | Codex users: repository-scoped guidance for governed planning, operation, reporting, and implementation work |
 
 ## Known limitations (V2)
 

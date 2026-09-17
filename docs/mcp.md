@@ -32,6 +32,10 @@ Generic client configuration:
 
 Use the secret-management syntax supported by the chosen client; do not paste a production token into a checked-in configuration file.
 
+### Codex skill and client setup
+
+This repository includes the `$utm-builder-v2` skill for Codex. The skill is discovered automatically when the repository is the working directory; it supplies workflow guidance but does not install this MCP connection or grant registry access. Configure the Streamable HTTP endpoint and a dedicated, scoped token separately, then verify the connection with a read-only reference-data call before attempting any preview or write. Full installation, `config.toml`, verification, and troubleshooting steps are in [codex-skill.md](codex-skill.md).
+
 ## Tools
 
 | Tool | Behavior |
