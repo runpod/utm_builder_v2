@@ -187,6 +187,7 @@ Health check: `GET /api/health` (checks API + database).
 | [docs/gtm-data-mcp.md](docs/gtm-data-mcp.md) | GTM teams/AI users: complete catalog, ownership, lineage, dictionary, template, and tool model |
 | [docs/source-reconciliation.md](docs/source-reconciliation.md) | Administrators/operators: Notion scanning, proposals, authority, scheduling, and failure safety |
 | [docs/decisions.md](docs/decisions.md) | Everyone: architecture decision records and open decisions |
+| [.agents/skills/utm-builder-v2/SKILL.md](.agents/skills/utm-builder-v2/SKILL.md) | Codex users: repository-scoped guidance for governed planning, operation, reporting, and implementation work |
 
 ## Known limitations (V2)
 
