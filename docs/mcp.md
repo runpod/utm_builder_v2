@@ -71,4 +71,4 @@ No MCP tool can edit governance settings, roles, audit records, or external mapp
 
 ## Related: the Claude skill
 
-The MCP server is one AI surface; the bundled Claude Agent Skill (`.claude/skills/utm-builder/`, documented in [docs/claude-skill.md](claude-skill.md)) is the complementary one. The MCP server suits conversational, tool-calling clients and also exposes the GTM catalog and templates; the skill teaches any skill-aware agent the link-generation workflow over `/api/v1`. Both are governed clients of the same registry and require a scoped bearer token.
+The MCP server is one AI surface; the bundled Claude Agent Skill (`.claude/skills/utm-builder-v2/`, documented in [docs/claude-skill.md](claude-skill.md)) is the complementary one. The MCP server suits conversational, tool-calling clients and also exposes the GTM catalog and templates; the skill teaches any skill-aware agent the link-generation workflow over `/api/v1`. Both are governed clients of the same registry and require a scoped bearer token.
