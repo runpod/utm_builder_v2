@@ -1,4 +1,4 @@
-# UTM Builder API reference (for the `utm-builder` skill)
+# UTM Builder API reference (for the `utm-builder-v2` skill)
 
 All paths are under the deployment origin. Send `Authorization: Bearer rpt_…` on
 every request. This mirrors [`docs/api.md`](../../../docs/api.md); the live,

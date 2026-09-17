@@ -1,5 +1,5 @@
 ---
-name: utm-builder
+name: utm-builder-v2
 description: >-
   Generate governed, deduplicated Runpod campaign URLs through the UTM Builder
   registry API instead of hand-crafting UTM query strings. Use whenever a task

@@ -49,7 +49,7 @@ Format per entry: Status / Context / Options / Decision / Justification / Tradeo
 - **Status:** Accepted
 - **Context:** Single builder, bulk grid, paste, CSV, and future clients (browser helper, platform integrations) all generate links.
 - **Options:** (a) per-surface generation logic; (b) shared client-side library; (c) one server-side service every entry point calls.
-- **Decision:** All entry points call `previewLink`/`issueLink` in `src/services/links.ts`; bulk (`src/services/batches.ts`) wraps the same call per row. This extends to non-UI clients: the web app, Chrome extension, `/api/v1`, MCP server, Slack app, and the bundled Claude skill (`.claude/skills/utm-builder/`) are all thin callers of the same service — the skill in particular carries no UTM/ID logic and only invokes the API.
+- **Decision:** All entry points call `previewLink`/`issueLink` in `src/services/links.ts`; bulk (`src/services/batches.ts`) wraps the same call per row. This extends to non-UI clients: the web app, Chrome extension, `/api/v1`, MCP server, Slack app, and the bundled Claude skill (`.claude/skills/utm-builder-v2/`) are all thin callers of the same service — the skill in particular carries no UTM/ID logic and only invokes the API.
 - **Justification:** Exactly one implementation of normalization, validation, fingerprints, ID minting, duplicate policy, and audit — divergence is structurally impossible. Client-side logic couldn't enforce DB-backed duplicate checks or mint trusted IDs.
 - **Tradeoffs:** Every client needs network access to the registry to create links (accepted: issuance is rare, clicks are common, and clicks don't need the registry).
 - **Revisit trigger:** An offline-issuance requirement (would need signed deferred issuance, not client minting).
