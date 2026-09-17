@@ -2,9 +2,7 @@ node_modules/
 .npm-cache/
 .next/
 .data/
-.env
-.env.local
+.env*
 *.tsbuildinfo
 coverage/
-.vercel
-.env*
+.vercel/

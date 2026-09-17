@@ -1,0 +1,7 @@
+interface:
+  display_name: "UTM Builder v2"
+  short_description: "Plan and operate governed campaign links"
+  default_prompt: "Use $utm-builder-v2 to help with this governed UTM Builder request."
+
+policy:
+  allow_implicit_invocation: true

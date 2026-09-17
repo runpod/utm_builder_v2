@@ -1,3 +1,4 @@
+import { campaignUpdateSchema } from "@/contracts/public-api";
 import { getDb } from "@/db/client";
 import { canManage, requireUser } from "@/services/auth";
 import { campaignDetail, updateCampaign } from "@/services/campaigns";
@@ -30,7 +31,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     const actor = await requireUser();
     const { id } = await params;
     const db = await getDb();
-    const { reason, ...patch } = await req.json();
+    const { reason, ...patch } = campaignUpdateSchema.parse(await req.json());
     const campaign = await updateCampaign(db, actor, id, patch, reason ?? null);
     return json({ campaign });
   });

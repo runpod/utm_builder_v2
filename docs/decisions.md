@@ -313,6 +313,16 @@ Format per entry: Status / Context / Options / Decision / Justification / Tradeo
 - **Tradeoffs:** Misconfiguration blocks legitimate Slack use until corrected; web/API recovery paths remain available.
 - **Revisit trigger:** Slack identity is enforced by an approved organization-wide gateway with equivalent or stronger controls.
 
+## 32. Repository-scoped Codex skill complements MCP
+
+- **Status:** Accepted
+- **Context:** Codex needs the Builder's current domain model, documentation routes, and safe operating sequence, but copying those rules into personal prompts would drift and could be mistaken for live access.
+- **Options:** (a) rely on ad hoc prompts; (b) publish a global standalone skill; (c) version a repository-scoped skill that can optionally use the separately configured GTM Data MCP.
+- **Decision:** Keep `$utm-builder-v2` under `.agents/skills` in this repository. It routes to current code and canonical documentation and can support explanation or implementation without MCP. Live registry work requires an independently configured MCP endpoint and the current user's scoped Builder token.
+- **Justification:** The guidance travels with code review and version history while authentication, authorization, validation, duplicate control, transactions, and audit remain server-enforced.
+- **Tradeoffs:** The skill is available only when Codex works within this repository; users must configure MCP separately; repository-relative references prevent treating the folder as a portable global skill.
+- **Revisit trigger:** Runpod wants organization-wide installation outside this repository or approves a distributable plugin with organization OAuth.
+
 ---
 
 ## Open decisions

@@ -13,7 +13,7 @@ This is the operating plan for moving UTM Builder & Registry V2 from a working a
 | Operational | Governed links are the default for in-scope work | Adoption and data-quality thresholds met for two review cycles |
 | Scaled | More channels and clients can be enabled safely | Per-channel certification, support capacity, stable reporting joins |
 
-The browser extension, API, MCP, Slack, source reconciliation, and bulk-template library remain modular clients or capabilities. They do not need to be activated together.
+The browser extension, API, MCP, repository Codex skill, Slack, source reconciliation, and bulk-template library remain modular clients or capabilities. They do not need to be activated together. The Codex skill may be used for repository guidance without MCP; live registry use follows the same MCP approval and token controls as any other client.
 
 ## Pilot scope
 
@@ -80,7 +80,7 @@ Approve SSO/database, owners, effective date, taxonomy, two presets, GA4/PostHog
 
 ### Phase 2 — channel expansion
 
-Certify additional presets against current platform behavior, add campaign teams and agencies, then enable the lowest-friction approved clients (Slack and/or extension). Keep web and CSV as recovery paths.
+Certify additional presets against current platform behavior, add campaign teams and agencies, then enable the lowest-friction approved clients (Slack, extension, and/or Codex with MCP). Keep web and CSV as recovery paths. Codex onboarding follows [codex-skill.md](codex-skill.md); the skill itself does not grant production access.
 
 ### Phase 3 — operational reporting
 
