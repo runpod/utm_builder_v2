@@ -82,3 +82,7 @@ Only `chrome-extension://<allowlisted-id>` origins receive CORS headers. Product
 ## Compatibility
 
 Additive fields may appear in `/api/v1` responses. Clients should ignore unknown fields. Breaking request/response or behavioral changes require `/api/v2`; taxonomy and preset changes are data/config versions and do not change the API version.
+
+## Claude skill
+
+A bundled Claude Agent Skill at `.claude/skills/utm-builder/` wraps this API so AI assistants issue governed links through `/api/v1` rather than hand-assembling `utm_*` strings. It is a client of this contract and holds no rules of its own. See [docs/claude-skill.md](claude-skill.md).
