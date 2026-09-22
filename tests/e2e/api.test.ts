@@ -187,7 +187,11 @@ describe("API end-to-end", () => {
   it("searches the registry by free text and by ID", async () => {
     const linksRoute = await import("@/app/api/links/route");
     const byId = await linksRoute.GET(jsonRequest(`/api/links?q=${linkId}`, "GET"));
-    expect((await byId.json()).rows).toHaveLength(1);
+    const { rows } = await byId.json();
+    expect(rows).toHaveLength(1);
+    expect(rows[0].creatorName).toBe("Dev User");
+    expect(rows[0].creatorEmail).toBe("dev-user@runpod.io");
+    expect(rows[0].link.createdBy).toMatch(/^rpu_/);
     const byText = await linksRoute.GET(jsonRequest("/api/links?q=e2e", "GET"));
     expect((await byText.json()).rows.length).toBeGreaterThan(0);
   });
@@ -198,6 +202,8 @@ describe("API end-to-end", () => {
     expect(res.headers.get("Content-Type")).toContain("text/csv");
     const csv = await res.text();
     expect(csv.split("\r\n")[0]).toContain("link_id");
+    expect(csv.split("\r\n")[0]).toContain("generated_by_email");
+    expect(csv).toContain("dev-user@runpod.io");
     expect(csv).toContain(linkId);
   });
 

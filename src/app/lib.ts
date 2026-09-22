@@ -121,6 +121,8 @@ export interface LinkSearchRow {
   link: LinkRec;
   campaignName: string | null;
   initiativeName: string | null;
+  creatorName: string | null;
+  creatorEmail: string | null;
 }
 
 export interface LinkSearchResult {
