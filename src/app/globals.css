@@ -227,6 +227,7 @@ input[type="email"],
 input[type="number"],
 input[type="date"],
 input[type="datetime-local"],
+input[type="search"],
 select,
 textarea {
   width: 100%;
@@ -569,6 +570,18 @@ details.json-details summary {
   border-radius: var(--radius);
   padding: 0.7rem 0.8rem;
   margin: 0.4rem 0 0.85rem;
+}
+
+.campaign-search {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.45rem;
+  margin-top: 0.4rem;
+}
+
+.campaign-search .hint {
+  grid-column: 1 / -1;
 }
 
 .divider {

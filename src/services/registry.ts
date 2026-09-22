@@ -5,7 +5,7 @@ import { and, desc, eq, ilike, or, sql, type SQL } from "drizzle-orm";
 import { toCsv } from "@/core/csv";
 import { idKindOf } from "@/core/ids";
 import type { Db } from "@/db/client";
-import { campaigns, initiatives, links } from "@/db/schema";
+import { campaigns, initiatives, links, users } from "@/db/schema";
 
 export interface RegistrySearch {
   q?: string; // free text across URL, destination, IDs, UTM fields
@@ -81,10 +81,13 @@ export async function searchLinks(db: Db, params: RegistrySearch) {
       link: links,
       campaignName: campaigns.name,
       initiativeName: initiatives.name,
+      creatorName: users.name,
+      creatorEmail: users.email,
     })
     .from(links)
     .leftJoin(campaigns, eq(links.campaignId, campaigns.id))
     .leftJoin(initiatives, eq(links.initiativeId, initiatives.id))
+    .leftJoin(users, eq(links.createdBy, users.id))
     .where(where)
     .orderBy(desc(links.createdAt))
     .limit(pageSize)
@@ -121,12 +124,14 @@ export const LINK_EXPORT_COLUMNS = [
   "revision",
   "config_version",
   "created_by",
+  "generated_by_name",
+  "generated_by_email",
   "created_at",
 ];
 
 export async function exportLinksCsv(db: Db, params: RegistrySearch): Promise<string> {
   const { rows } = await searchLinks(db, { ...params, page: 1, pageSize: 200 });
-  const body = rows.map(({ link, campaignName }) => [
+  const body = rows.map(({ link, campaignName, creatorName, creatorEmail }) => [
     link.id,
     link.batchId,
     link.campaignId,
@@ -149,6 +154,8 @@ export async function exportLinksCsv(db: Db, params: RegistrySearch): Promise<st
     String(link.currentRevision),
     String(link.configVersion),
     link.createdBy,
+    creatorName,
+    creatorEmail,
     link.createdAt.toISOString(),
   ]);
   return toCsv([LINK_EXPORT_COLUMNS, ...body]);

@@ -18,11 +18,17 @@ async function createDb(): Promise<Db> {
   const url = process.env.DATABASE_URL;
   if (url) {
     const { drizzle } = await import("drizzle-orm/node-postgres");
-    const { migrate } = await import("drizzle-orm/node-postgres/migrator");
     const { Pool } = await import("pg");
     const pool = new Pool({ connectionString: url, max: 5 });
     const db = drizzle(pool, { schema });
-    await migrate(db, { migrationsFolder: "./drizzle" });
+    // Migrations are applied out-of-band as a deploy step (npm run db:migrate),
+    // not at request time — running them per cold-start adds latency, risks
+    // concurrent-boot races, and needs the migration files bundled into every
+    // serverless function. Opt in explicitly only if you want boot-time migrate.
+    if (process.env.RUN_MIGRATIONS_ON_BOOT === "true") {
+      const { migrate } = await import("drizzle-orm/node-postgres/migrator");
+      await migrate(db, { migrationsFolder: "./drizzle" });
+    }
     return db as unknown as Db;
   }
   const { PGlite } = await import("@electric-sql/pglite");

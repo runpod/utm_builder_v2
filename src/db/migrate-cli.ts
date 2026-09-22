@@ -1,4 +1,5 @@
-/** Run migrations (and seed if the database is empty). */
+/** Run migrations as an explicit deploy step (not at app boot). */
+process.env.RUN_MIGRATIONS_ON_BOOT = "true";
 import { getDb } from "./client";
 
 getDb()

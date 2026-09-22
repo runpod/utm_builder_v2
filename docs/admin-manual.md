@@ -128,6 +128,7 @@ Investigators can read runs; only admins trigger them.
 - Set `EXTENSION_IDS` in production. An empty allowlist disables production extension redirects/CORS.
 - For an incident, revoke the affected token first, then filter audit events by actor and time. Bearer-authenticated writes store the access-token record as `context.credentialId`; `lastUsedAt` narrows the activity window, and issued records identify every URL affected.
 - MCP exposes no admin/configuration tools. Any future administrative integration requires a separate decision and narrower scopes.
+- The repository's Codex skill is instruction-only and grants no access by itself. Live operations still use the MCP token's Builder user, role, and scopes; onboarding and verification are documented in [codex-skill.md](codex-skill.md).
 
 Audit events (`rpa_`) are append-only, written in the same transaction as the change they describe, with before/after snapshots (secret-looking keys are redacted) and optional reason and correlation ID. Query via `GET /api/admin/audit`; add `format=csv` for export.
 

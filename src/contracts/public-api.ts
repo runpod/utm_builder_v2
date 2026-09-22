@@ -24,6 +24,15 @@ export const campaignInputSchema = z.object({
   duplicateReason: z.string().trim().max(1000).nullish(),
 });
 
+export const campaignUpdateSchema = campaignInputSchema
+  .omit({ utmCampaign: true, duplicateAction: true, duplicateReason: true })
+  .partial()
+  .extend({
+    lifecycle: z.enum(["planned", "active", "completed", "archived"]).optional(),
+    reason: z.string().trim().max(1000).nullish(),
+  })
+  .strict();
+
 export const linkRequestSchema = z.object({
   destination: z.string().trim().min(1).max(4000),
   campaignId: z.string().trim().min(1),

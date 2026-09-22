@@ -3,7 +3,7 @@
  * creation, carried publicly in utm_id, and never changes on rename/edit.
  * Campaigns are created only explicitly — never implicitly from a typed name.
  */
-import { asc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, or } from "drizzle-orm";
 import { isValidId, newId } from "@/core/ids";
 import { canonicalUtmValue, looseUtmValue } from "@/core/url";
 import type { Db } from "@/db/client";
@@ -175,8 +175,23 @@ export async function updateCampaign(
     const ownerId = patch.ownerId !== undefined
       ? await resolveRecordOwner(tx as Db, actor, patch.ownerId, before.ownerId ?? before.createdBy)
       : before.ownerId;
+    const initiativeId = patch.initiativeId !== undefined
+      ? patch.initiativeId?.trim() || null
+      : before.initiativeId;
+    const initiativeChanged = initiativeId !== before.initiativeId;
+    if (initiativeId) {
+      if (!isValidId("initiative", initiativeId)) throw new Error("Invalid initiative ID.");
+      const target = await tx
+        .select({ id: initiatives.id })
+        .from(initiatives)
+        .where(eq(initiatives.id, initiativeId));
+      if (target.length === 0) throw new Error("Initiative not found.");
+    }
     if (ownerId !== before.ownerId && !reason?.trim()) {
       throw new Error("A reason is required to transfer campaign ownership.");
+    }
+    if (initiativeChanged && !reason?.trim()) {
+      throw new Error("A reason is required to change a campaign's initiative assignment.");
     }
     // The canonical ID and utm_campaign slug are immutable after creation;
     // metadata (name, owner, dates, lifecycle) may change freely.
@@ -184,7 +199,7 @@ export async function updateCampaign(
       .update(campaigns)
       .set({
         name: patch.name?.trim() || before.name,
-        initiativeId: patch.initiativeId !== undefined ? patch.initiativeId : before.initiativeId,
+        initiativeId,
         ownerId,
         product: patch.product !== undefined ? patch.product : before.product,
         campaignType: patch.campaignType !== undefined ? patch.campaignType : before.campaignType,
@@ -202,7 +217,11 @@ export async function updateCampaign(
       idempotencyKey: `warehouse.snapshot.campaign:${row.id}:${row.updatedAt.toISOString()}`,
     });
     await recordAudit(tx, actor, {
-      action: ownerId !== before.ownerId ? "campaign.owner_transferred" : "campaign.updated",
+      action: ownerId !== before.ownerId
+        ? "campaign.owner_transferred"
+        : initiativeChanged
+          ? "campaign.initiative_reassigned"
+          : "campaign.updated",
       entityType: "campaign",
       entityId: id,
       before,
@@ -215,6 +234,66 @@ export async function updateCampaign(
 
 export async function listCampaigns(db: Db) {
   return db.select().from(campaigns).orderBy(asc(campaigns.name));
+}
+
+export interface CampaignPickerGroups {
+  recent: (typeof campaigns.$inferSelect)[];
+  mine: (typeof campaigns.$inferSelect)[];
+  initiative: (typeof campaigns.$inferSelect)[];
+}
+
+/**
+ * Small, useful default sets for campaign pickers. Completed and archived
+ * campaigns stay out of the default view but remain available through search.
+ */
+export async function listCampaignPickerGroups(
+  db: Db,
+  actor: SessionUser,
+  initiativeId?: string,
+): Promise<CampaignPickerGroups> {
+  const currentLifecycle = or(eq(campaigns.lifecycle, "planned"), eq(campaigns.lifecycle, "active"))!;
+  const [recent, mine, initiative] = await Promise.all([
+    db
+      .select()
+      .from(campaigns)
+      .where(currentLifecycle)
+      .orderBy(desc(campaigns.updatedAt))
+      .limit(8),
+    db
+      .select()
+      .from(campaigns)
+      .where(and(currentLifecycle, eq(campaigns.ownerId, actor.id)))
+      .orderBy(asc(campaigns.name))
+      .limit(20),
+    initiativeId
+      ? db
+          .select()
+          .from(campaigns)
+          .where(and(currentLifecycle, eq(campaigns.initiativeId, initiativeId)))
+          .orderBy(asc(campaigns.name))
+          .limit(20)
+      : Promise.resolve([]),
+  ]);
+  return { recent, mine, initiative };
+}
+
+/** Global, bounded fallback search, including completed/archived records. */
+export async function searchCampaigns(db: Db, query: string) {
+  const q = query.trim();
+  if (!q) return [];
+  const like = `%${q}%`;
+  return db
+    .select()
+    .from(campaigns)
+    .where(
+      or(
+        ilike(campaigns.id, like),
+        ilike(campaigns.name, like),
+        ilike(campaigns.utmCampaign, like),
+      ),
+    )
+    .orderBy(desc(campaigns.updatedAt))
+    .limit(20);
 }
 
 export async function campaignDetail(db: Db, id: string) {

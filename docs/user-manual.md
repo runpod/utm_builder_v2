@@ -14,7 +14,7 @@ Audience: campaign managers and anyone issuing governed campaign URLs.
 ## 2. Creating a single link
 
 1. **Search, then pick (or create) the campaign.** Links cannot be issued without a canonical campaign. The campaign supplies `utm_id` (its `rpc_` ID) and `utm_campaign` (its canonical slug); you do not type either. When a spacing/punctuation variant already exists, creation returns a candidate to reuse. Only an administrator can create a genuinely separate campaign, and must record why.
-2. **Pick a preset** (defaults to `generic`). Presets can pre-fill `utm_source`/`utm_medium` and may require extra fields (e.g. Google Ads, LinkedIn, Meta, and HubSpot/Email require `utm_content`).
+2. **Pick a preset** (defaults to `generic`). Presets can pre-fill `utm_source`/`utm_medium` and may require extra fields (e.g. Google Ads, LinkedIn, X Ads, Meta, and HubSpot/Email require `utm_content`).
 3. **Enter the destination.** Bare domains, `www.` hosts, and `http://` URLs are accepted and normalized to HTTPS. Any query params or fragment you include are preserved — except governed params, which are replaced.
 4. **Enter source / medium / content / term.** Source and medium must exist in the governed taxonomy (aliases are accepted with a warning and resolved to the canonical value).
 5. **Preview.** The preview (`POST /api/links/preview`) is a dry run: it validates, checks for duplicates, and shows the final URL with a placeholder link ID (`rpl_PREVIEW`). It never writes anything.
@@ -33,7 +33,7 @@ rp_initiative_id? (admin policy, default OFF), rp_link_id? (admin policy, defaul
 
 ### Fast access from other tools
 
-Use the browser extension when you need one URL while working in HubSpot or an ad platform: click the toolbar button for the current page, or right-click a link, then preview and issue from the side panel. In Slack, use `/utm [destination]` for one link or `/utm bulk` for a CSV of up to 200 rows. Use the web bulk flow for grid editing and exception repair. Approved scripts and AI tools use the versioned API/MCP server; every entry point creates the same registry records and cannot bypass validation or duplicate checks. See [browser-extension.md](browser-extension.md), [slack.md](slack.md), and [mcp.md](mcp.md).
+Use the browser extension when you need one URL while working in HubSpot or an ad platform: click the toolbar button for the current page, or right-click a link, then preview and issue from the side panel. In Slack, use `/utm [destination]` for one link or `/utm bulk` for a CSV of up to 200 rows. Use the web bulk flow for grid editing and exception repair. Approved scripts and AI tools use the versioned API/MCP server; every entry point creates the same registry records and cannot bypass validation or duplicate checks. Codex users who open this repository can invoke `$utm-builder-v2` for guided Builder and reporting work; live registry operations require the separately configured MCP connection and scoped token. See [browser-extension.md](browser-extension.md), [slack.md](slack.md), [mcp.md](mcp.md), and [codex-skill.md](codex-skill.md).
 
 All bulk paths produce one **batch** (`rpb_...`) and run every row through the exact same issuance service as the single builder. The batch limit is admin-configurable (default **200** rows).
 
@@ -61,6 +61,8 @@ Behavior:
 
 Rule of thumb: if you'd ever want a single rollup number for "the launch" across multiple campaigns, create the initiative first and attach campaigns to it.
 
+Each campaign can be assigned to at most one initiative. If the builder detects that the selected campaign belongs to a different initiative, it preserves both selections, blocks issuance, and asks you to resolve the mismatch explicitly. The campaign's creator, owner, or an administrator may change its initiative assignment with a required audit reason. Existing links keep the initiative recorded when they were issued; future links use the campaign's new assignment.
+
 ## 5. Reporting with exact IDs
 
 - **Campaign performance:** filter on **equality** of `utm_id` (= the `rpc_` campaign ID). This is GA4's native session campaign ID dimension.
@@ -77,6 +79,8 @@ Seeded presets (all editable by admins):
 | `generic` | url | — | — | verified |
 | `google_ads` | url | `google-ads` / `paid` | `utm_content` | draft |
 | `linkedin` | url | `linkedin-paid` / `paid` | `utm_content` | draft |
+| `x_organic` | url | `twitter-organic` / `organic` | — | draft |
+| `x_paid` | url | `twitter-paid` / `paid` | `utm_content` | draft |
 | `meta` | url | `facebook-paid` / `paid` | `utm_content` | draft |
 | `reddit` | url | `reddit-paid` / `paid` | — | draft |
 | `cm360` | tracking_template | `programmatic` / `paid` | — | draft |
@@ -84,6 +88,7 @@ Seeded presets (all editable by admins):
 | `event_qr` | qr_target | — / `event` | — | verified |
 
 - Preset defaults fill blanks; anything you type explicitly wins.
+- X keeps the historical canonical sources `twitter-organic` and `twitter-paid`; `x-organic` and `x-paid` remain accepted aliases that normalize to those values.
 - Presets whitelist **macros** (e.g. `{keyword}` for Google Ads, `{{ad.id}}` for Meta). Using a macro the preset doesn't support is a blocking error.
 - A `draft` preset issues links with a warning: it has not been verified against current platform documentation. A `deprecated` preset blocks issuance.
 
@@ -175,7 +180,9 @@ Campaign and initiative ownership may be transferred only by an administrator. T
 - **Direct ID lookup** — paste any `rp*_` ID (link, campaign, initiative, batch) into the search box.
 - Filters: campaign, initiative, batch, status (`draft`/`issued`/`retired`), validation state, platform preset, creator, source, medium, duplicate-override flag, created before/after.
 
-**CSV export** (`GET /api/export/links`) honors the same filters and includes all identifiers, raw UTM values, the emitted `rp_*` params, platform, validation state, revision, and config version. Exports are audited. Note: an export returns at most 200 rows per request — narrow your filters for large registries.
+The registry table shows **Generated by** with the issuing user's name and email; if their user profile is unavailable, it shows the recorded user ID.
+
+**CSV export** (`GET /api/export/links`) honors the same filters and includes all identifiers, raw UTM values, the emitted `rp_*` params, platform, validation state, revision, config version, and the issuing user's ID, name, and email. Exports are audited. Note: an export returns at most 200 rows per request — narrow your filters for large registries.
 
 ## 11. ID glossary
 

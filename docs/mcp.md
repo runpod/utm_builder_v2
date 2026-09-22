@@ -32,6 +32,10 @@ Generic client configuration:
 
 Use the secret-management syntax supported by the chosen client; do not paste a production token into a checked-in configuration file.
 
+### Codex skill and client setup
+
+This repository includes the `$utm-builder-v2` skill for Codex. The skill is discovered automatically when the repository is the working directory; it supplies workflow guidance but does not install this MCP connection or grant registry access. Configure the Streamable HTTP endpoint and a dedicated, scoped token separately, then verify the connection with a read-only reference-data call before attempting any preview or write. Full installation, `config.toml`, verification, and troubleshooting steps are in [codex-skill.md](codex-skill.md).
+
 ## Tools
 
 | Tool | Behavior |
@@ -64,3 +68,7 @@ No MCP tool can edit governance settings, roles, audit records, or external mapp
 - Rotate before expiry and revoke the replaced token.
 - Investigate unexpected `lastUsedAt` activity and revoke immediately.
 - Production should migrate from personal bearer tokens to Runpod-approved OAuth when the organization selects a provider that supports MCP clients.
+
+## Related: the Claude skill
+
+The MCP server is one AI surface; the bundled Claude Agent Skill (`.claude/skills/utm-builder-v2/`, documented in [docs/claude-skill.md](claude-skill.md)) is the complementary one. The MCP server suits conversational, tool-calling clients and also exposes the GTM catalog and templates; the skill teaches any skill-aware agent the link-generation workflow over `/api/v1`. Both are governed clients of the same registry and require a scoped bearer token.

@@ -52,6 +52,8 @@ Generic client configuration:
 
 Use the secret-management syntax supported by the client. Never commit a production token.
 
+Codex users can pair this server with the repository's `$utm-builder-v2` skill. The skill supplies Runpod-specific operating guidance; this MCP server supplies live tools and enforces the user's Builder identity and scopes. See [codex-skill.md](codex-skill.md) for installation, secure client configuration, verification, and troubleshooting.
+
 ## Tool inventory
 
 ### GTM operating context (read-only)
