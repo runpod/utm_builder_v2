@@ -119,9 +119,9 @@ Format per entry: Status / Context / Options / Decision / Justification / Tradeo
 - **Status:** Accepted
 - **Context:** Needs relational integrity (partial unique indexes carry core invariants), Vercel serverless compatibility, and zero-friction local dev.
 - **Options:** DBs: Postgres vs. SQLite vs. hosted-proprietary. ORM: Drizzle vs. Prisma vs. raw SQL. Dev DB: Docker Postgres vs. SQLite vs. PGlite.
-- **Decision:** PostgreSQL in production (`DATABASE_URL`, node-postgres). Local dev without `DATABASE_URL` uses PGlite — real Postgres compiled to WASM, persisted at `.data/pglite` — running the *same* Drizzle migrations from `./drizzle`. Drizzle ORM + drizzle-kit for schema/migrations; migrations auto-apply on boot via `getDb()`.
+- **Decision:** PostgreSQL in production (`DATABASE_URL`, node-postgres). Local dev without `DATABASE_URL` uses PGlite — real Postgres compiled to WASM, persisted at `.data/pglite` — running the *same* Drizzle migrations from `./drizzle`. Drizzle ORM + drizzle-kit for schema/migrations; production migrations run as an explicit release step (`npm run db:migrate`), while local PGlite migrations apply on boot.
 - **Justification:** Partial unique indexes (duplicate blocking, HubSpot GUID uniqueness) are Postgres features the design depends on. PGlite gives `git clone && npm run dev` with zero infrastructure *and* dialect fidelity — no "works on SQLite, fails on Postgres" drift. Drizzle stays close to SQL and supports both drivers with one schema.
-- **Tradeoffs:** PGlite is single-process (fine for dev); boot-time migration on serverless has cold-start/race caveats (mitigated by the explicit release-step recommendation in [deployment-vercel.md](deployment-vercel.md) §5).
+- **Tradeoffs:** PGlite is single-process (fine for dev); an explicit production migration step adds release coordination but avoids serverless cold-start latency and concurrent migration races (see [deployment-vercel.md](deployment-vercel.md) §5).
 - **Revisit trigger:** Provider approval outcome (Open decisions) may add pooling requirements; PGlite maturity issues would push dev to Docker Postgres.
 
 ## 13. Export-first platform support
