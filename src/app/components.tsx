@@ -207,7 +207,7 @@ export function Nav() {
                 </span>
               ) : null}
               <a className="btn-small" href="/api/auth/login">
-                Sign in with Google
+                {authProvider === "google" ? "Sign in with Google" : "Sign in with Runpod SSO"}
               </a>
             </>
           ) : isPoc ? (

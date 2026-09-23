@@ -29,10 +29,10 @@ Requirements regardless of provider:
 | Variable | Environment | Value | Notes |
 |---|---|---|---|
 | `DATABASE_URL` | Production, Preview | `postgres://user:pass@host:5432/db` | Required in production. When unset, the app falls back to embedded PGlite — local dev only, never acceptable on Vercel. |
-| `AUTH_PROVIDER` | Production, Preview | `google` | Recommended production provider (decision 2026-09-06). The dev provider unconditionally refuses to run in a production build, so Preview needs a real provider too. `oidc` (any OIDC IdP, e.g. Okta) and `sso` (signed-header proxy) remain supported alternatives. |
+| `AUTH_PROVIDER` | Production, Preview | `oidc` | Production provider: Okta via the in-app OIDC flow (IT decision 2026-09-22; see §4a). The dev provider unconditionally refuses to run in a production build, so Preview needs a real provider too. `oidc` (any OIDC IdP, e.g. Okta) and `sso` (signed-header proxy) remain supported alternatives. |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Production, Preview | `<Google Workspace OAuth client>` | OAuth 2.0 Web application client created in a Runpod-owned Google Cloud project; authorized redirect URI is `<APP_URL>/api/auth/callback` (one per environment). |
 | `SESSION_SECRET` | Production, Preview | `<32+ char random secret per environment>` | Signs the login session cookie (12h TTL). `openssl rand -hex 32`; never reuse across environments. |
-| `OIDC_ISSUER` / `OIDC_CLIENT_ID` / `OIDC_CLIENT_SECRET` / `OIDC_ALLOWED_EMAIL_DOMAINS` | Optional | — | Generic OIDC overrides. Point at Okta (or another IdP) later without code changes; defaults are Google + `runpod.io`. |
+| `OIDC_ISSUER` / `OIDC_CLIENT_ID` / `OIDC_CLIENT_SECRET` / `OIDC_ALLOWED_EMAIL_DOMAINS` | Production, Preview | `https://runpod.okta.com` / `<Okta client ID>` / `<Okta client secret>` / `runpod.io` | Okta app integration values from IT (§4a). Any OIDC issuer works; when unset the provider defaults to Google + `runpod.io`. |
 | `SSO_HEADER_SECRET` | Only with `AUTH_PROVIDER=sso` | `<independent long random secret per environment>` | Shared only with the approved identity-aware proxy. Never expose it to clients or reuse the Production value in Preview. |
 | `OUTBOX_PROCESS_TOKEN` | Production, Preview | `<long random secret>` | Bearer token protecting `/api/outbox/process`. Required — the route rejects everything when no token is configured. |
 | `CRON_SECRET` | Production | `<long random secret>` | Vercel automatically sends this as `Authorization: Bearer` on both scheduled routes. |
@@ -51,7 +51,26 @@ Reference: `.env.example`.
 
 ## 4. Sign-in providers
 
-### 4a. Google OAuth / OIDC (recommended, decision 2026-09-06)
+### 4a. Okta — Runpod SSO (selected by IT, 2026-09-22)
+
+The same in-app OIDC provider (`src/services/oidc.ts`) runs against Okta with configuration only. Give IT this specification when requesting the app integration:
+
+| Item | Value |
+|---|---|
+| Okta app type | **OIDC — OpenID Connect**, application type **Web Application** |
+| App name | Runpod UTM Builder |
+| Grant type | **Authorization Code** only (no implicit, no refresh token needed) |
+| Client authentication | **Client secret** (the app authenticates to the token endpoint with `client_secret_basic`) |
+| Sign-in redirect URI(s) | `https://utm-builder-runpod.vercel.app/api/auth/callback` (Production). Add one per additional environment/custom domain later. |
+| Sign-out redirect URI | none required (the app clears its own session cookie) |
+| Authorization server | **Org authorization server** (issuer `https://runpod.okta.com`). Not a custom authorization server — plain sign-in needs no API Access Management. |
+| Scopes | `openid`, `email`, `profile` (Okta defaults; no custom claims needed — the app reads email from `userinfo`) |
+| Assignments | The marketing group and/or named users, including the initial administrator. Okta assignment is the first access gate; the app's own provisioning is the second. |
+| Deliverables | Client ID + Client secret via 1Password, and confirmation of the issuer URL. |
+
+Then set: `AUTH_PROVIDER=oidc`, `OIDC_ISSUER=https://runpod.okta.com`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET`, `OIDC_ALLOWED_EMAIL_DOMAINS=runpod.io`, `SESSION_SECRET`, `APP_URL`. Sign-in still requires an existing active `users` row (no auto-provisioning) and roles come only from the database. Okta's code-flow id_token omits email; the app resolves it from the userinfo endpoint bound to the same `sub`, then applies the verified-email and domain checks. Once Okta is live, turn **off** Vercel Deployment Protection on the project so non-Vercel users can reach the sign-in page — Okta plus in-app provisioning becomes the gate.
+
+### 4a-alt. Google OAuth / OIDC (alternative)
 
 `AUTH_PROVIDER=google` runs the authorization-code flow directly in the app — no identity proxy is required:
 

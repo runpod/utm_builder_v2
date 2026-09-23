@@ -8,10 +8,12 @@ import { assertRateLimit, clientIp } from "@/server/rate-limit";
 import { AuthError } from "@/services/auth";
 import { recordAudit } from "@/services/audit";
 import {
+  assertEmailAllowed,
   createSessionCookieValue,
   decodeJwtPayload,
   discover,
-  exchangeCodeForIdToken,
+  exchangeCode,
+  fetchUserInfo,
   OIDC_STATE_COOKIE,
   oidcSettings,
   parseStateCookie,
@@ -27,7 +29,7 @@ function failure(origin: string, code: string): NextResponse {
   return NextResponse.redirect(new URL(`/?auth_error=${encodeURIComponent(code)}`, origin));
 }
 
-/** Complete the Google/OIDC sign-in flow. Unknown emails are rejected. */
+/** Complete the Okta/Google/OIDC sign-in flow. Unknown emails are rejected. */
 export async function GET(req: Request) {
   const origin = new URL(req.url).origin;
   const jar = await cookies();
@@ -46,20 +48,35 @@ export async function GET(req: Request) {
     }
 
     const settings = oidcSettings(origin);
-    const { token_endpoint } = await discover(settings.issuer);
-    const idToken = await exchangeCodeForIdToken({
-      tokenEndpoint: token_endpoint,
+    const discovery = await discover(settings.issuer);
+    const { idToken, accessToken } = await exchangeCode({
+      tokenEndpoint: discovery.token_endpoint,
       code,
       redirectUri: settings.redirectUri,
       clientId: settings.clientId,
       clientSecret: settings.clientSecret,
     });
-    const { email } = validateIdTokenClaims(decodeJwtPayload(idToken), {
+    const identity = validateIdTokenClaims(decodeJwtPayload(idToken), {
       issuer: settings.issuer,
       clientId: settings.clientId,
       nonce: stored.nonce,
       allowedDomains: settings.allowedDomains,
+      allowMissingEmail: true,
     });
+
+    // Okta's code-flow id_token is "thin" and may omit email; resolve it from
+    // userinfo, bound to the same subject the id_token authenticated.
+    let email = identity.email;
+    if (!email) {
+      if (!discovery.userinfo_endpoint || !accessToken) {
+        throw new AuthError(401, "Identity provider did not supply an email.");
+      }
+      const info = await fetchUserInfo(discovery.userinfo_endpoint, accessToken);
+      if (!identity.sub || !info.sub || !safeEqual(info.sub, identity.sub)) {
+        throw new AuthError(401, "userinfo subject does not match the id_token.");
+      }
+      email = assertEmailAllowed(info.email, info.email_verified, settings.allowedDomains);
+    }
 
     // No auto-provisioning: sign-in requires an existing active account.
     const db = await getDb();

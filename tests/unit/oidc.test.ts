@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { AuthError } from "@/services/auth";
 import {
+  assertEmailAllowed,
+  isGoogleIssuer,
   buildAuthorizationUrl,
   createSessionCookieValue,
   decodeJwtPayload,
@@ -120,5 +122,64 @@ describe("jwt decoding", () => {
     const payload = Buffer.from(JSON.stringify({ email: "a@b.co" })).toString("base64url");
     expect(decodeJwtPayload(`h.${payload}.s`).email).toBe("a@b.co");
     expect(() => decodeJwtPayload("not-a-jwt")).toThrow(AuthError);
+  });
+});
+
+describe("Okta compatibility", () => {
+  const common = {
+    clientId: "0oa1okta",
+    redirectUri: "https://utm-builder-runpod.vercel.app/api/auth/callback",
+    state: "s1",
+    nonce: "n1",
+    loginHintDomain: "runpod.io",
+  };
+
+  it("detects Google vs other issuers", () => {
+    expect(isGoogleIssuer("https://accounts.google.com")).toBe(true);
+    expect(isGoogleIssuer("accounts.google.com")).toBe(true);
+    expect(isGoogleIssuer("https://runpod.okta.com")).toBe(false);
+    expect(isGoogleIssuer("https://runpod.okta.com/oauth2/default")).toBe(false);
+  });
+
+  it("omits Google-only prompt/hd params for an Okta issuer", () => {
+    const url = new URL(
+      buildAuthorizationUrl({
+        ...common,
+        authorizationEndpoint: "https://runpod.okta.com/oauth2/v1/authorize",
+        issuer: "https://runpod.okta.com",
+      }),
+    );
+    expect(url.searchParams.get("prompt")).toBeNull();
+    expect(url.searchParams.get("hd")).toBeNull();
+    expect(url.searchParams.get("scope")).toBe("openid email profile");
+    expect(url.searchParams.get("response_type")).toBe("code");
+  });
+
+  it("still sends prompt/hd for Google", () => {
+    const url = new URL(
+      buildAuthorizationUrl({
+        ...common,
+        authorizationEndpoint: "https://accounts.google.com/o/oauth2/v2/auth",
+        issuer: "https://accounts.google.com",
+      }),
+    );
+    expect(url.searchParams.get("prompt")).toBe("select_account");
+    expect(url.searchParams.get("hd")).toBe("runpod.io");
+  });
+
+  it("accepts a thin id_token (no email) only when allowMissingEmail is set", () => {
+    const thin = { ...baseClaims, email: undefined, sub: "00u123", iss: "https://runpod.okta.com" };
+    const okta = { ...expected, issuer: "https://runpod.okta.com" };
+    expect(() => validateIdTokenClaims(thin, okta)).toThrow(AuthError);
+    const identity = validateIdTokenClaims(thin, { ...okta, allowMissingEmail: true });
+    expect(identity.email).toBeNull();
+    expect(identity.sub).toBe("00u123");
+  });
+
+  it("applies the same email policy to userinfo-derived emails", () => {
+    expect(assertEmailAllowed("Ken@Runpod.io", true, ["runpod.io"])).toBe("ken@runpod.io");
+    expect(() => assertEmailAllowed("x@gmail.com", true, ["runpod.io"])).toThrow(AuthError);
+    expect(() => assertEmailAllowed("ken@runpod.io", false, ["runpod.io"])).toThrow(AuthError);
+    expect(() => assertEmailAllowed(undefined, true, ["runpod.io"])).toThrow(AuthError);
   });
 });
