@@ -43,7 +43,7 @@ Requirements regardless of provider:
 | `SLACK_ALLOWED_ENTERPRISE_IDS` | Production | `<Runpod Slack enterprise ID>` | Comma-separated allowlist. Production Slack access fails closed when both Slack allowlists are empty. |
 | `SLACK_ALLOWED_TEAM_IDS` | Optional | `<workspace IDs>` | Supplements or narrows workspace-level installs. |
 | `SLACK_USER_EMAIL_MAP_JSON` | Optional | `{"U123":"person@runpod.io"}` | Fallback identity mapping when a profile email is unavailable. |
-| `APP_URL` | Production, Preview | `https://utm.runpod.io` | Canonical registry links sent in Slack batch results. |
+| `APP_URL` | Production, Preview | `https://utm-builder-runpod.vercel.app` | The deployment's public origin. Used for canonical registry links (Slack results) **and** to build the OIDC redirect URI `<APP_URL>/api/auth/callback`, so it must exactly match the redirect URI registered in Okta. Change both together if a custom domain (e.g. `utm.runpod.io`) is added later. |
 | `HUBSPOT_ACCESS_TOKEN` | Production | `<HubSpot private-app token>` | Optional at launch: without it, HubSpot syncs stay queued/failed in the outbox and everything else works. |
 | `EXTENSION_IDS` | Production | `<32-character Chrome extension ID>` | Required for the production extension PKCE redirect and CORS. Comma-separated only during a controlled ID transition. |
 

@@ -185,6 +185,7 @@ Health check: `GET /api/health` (checks API + database).
 | [docs/user-manual.md](docs/user-manual.md) | Campaign managers: creating links, bulk flows, duplicates, reporting IDs |
 | [docs/admin-manual.md](docs/admin-manual.md) | Administrators: taxonomy, policies, presets, roles, audit, incidents |
 | [docs/deployment-vercel.md](docs/deployment-vercel.md) | Operators: Vercel setup, env vars, SSO contract, cron, backups |
+| [docs/migration-vercel-team.md](docs/migration-vercel-team.md) | Operators: runbook for moving the deployment to the Runpod team Vercel with a shared database, Okta cutover, rollback |
 | [docs/reporting-contract.md](docs/reporting-contract.md) | Analysts: GA4/PostHog capture, Snowflake models, Mode contract, joins, QA, sample SQL |
 | [docs/pilot-governance.md](docs/pilot-governance.md) | Owners and pilot teams: maturity, policy, RACI, adoption measures, phased rollout |
 | [docs/historical-migration.md](docs/historical-migration.md) | Analytics/MOPS: forward-control effective date, legacy crosswalk, confidence and coexistence |
