@@ -62,6 +62,12 @@ export interface Campaign {
   updatedAt: string;
 }
 
+export interface CampaignPickerGroups {
+  recent: Campaign[];
+  mine: Campaign[];
+  initiative: Campaign[];
+}
+
 export interface CampaignDuplicateCandidate {
   id: string;
   name: string;
@@ -115,6 +121,8 @@ export interface LinkSearchRow {
   link: LinkRec;
   campaignName: string | null;
   initiativeName: string | null;
+  creatorName: string | null;
+  creatorEmail: string | null;
 }
 
 export interface LinkSearchResult {

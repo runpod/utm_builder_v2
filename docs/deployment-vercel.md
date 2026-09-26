@@ -29,10 +29,11 @@ Requirements regardless of provider:
 | Variable | Environment | Value | Notes |
 |---|---|---|---|
 | `DATABASE_URL` | Production, Preview | `postgres://user:pass@host:5432/db` | Required in production. When unset, the app falls back to embedded PGlite — local dev only, never acceptable on Vercel. |
-| `AUTH_PROVIDER` | Production, Preview | `google` | Recommended production provider (decision 2026-09-06). The dev provider unconditionally refuses to run in a production build, so Preview needs a real provider too. `oidc` (any OIDC IdP, e.g. Okta) and `sso` (signed-header proxy) remain supported alternatives. |
+| `AUTH_PROVIDER` | Production, Preview | `oidc` | Production provider: Okta via the in-app OIDC flow (IT decision 2026-09-22; see §4a). The dev provider unconditionally refuses to run in a production build, so Preview needs a real provider too. `oidc` (any OIDC IdP, e.g. Okta) and `sso` (signed-header proxy) remain supported alternatives. |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Production, Preview | `<Google Workspace OAuth client>` | OAuth 2.0 Web application client created in a Runpod-owned Google Cloud project; authorized redirect URI is `<APP_URL>/api/auth/callback` (one per environment). |
 | `SESSION_SECRET` | Production, Preview | `<32+ char random secret per environment>` | Signs the login session cookie (12h TTL). `openssl rand -hex 32`; never reuse across environments. |
-| `OIDC_ISSUER` / `OIDC_CLIENT_ID` / `OIDC_CLIENT_SECRET` / `OIDC_ALLOWED_EMAIL_DOMAINS` | Optional | — | Generic OIDC overrides. Point at Okta (or another IdP) later without code changes; defaults are Google + `runpod.io`. |
+| `OIDC_ISSUER` / `OIDC_CLIENT_ID` / `OIDC_CLIENT_SECRET` / `OIDC_ALLOWED_EMAIL_DOMAINS` | Production, Preview | `https://runpod.okta.com` / `<Okta client ID>` / `<Okta client secret>` / `runpod.io` | Okta app integration values from IT (§4a). Any OIDC issuer works; when unset the provider defaults to Google + `runpod.io`. |
+| `OIDC_AUTO_PROVISION` | Production | `true` | Auto-create first-time Okta sign-ins as `user` when the Okta group assignment is the access gate (Marketing rollout). Unset/false = existing active account required. |
 | `SSO_HEADER_SECRET` | Only with `AUTH_PROVIDER=sso` | `<independent long random secret per environment>` | Shared only with the approved identity-aware proxy. Never expose it to clients or reuse the Production value in Preview. |
 | `OUTBOX_PROCESS_TOKEN` | Production, Preview | `<long random secret>` | Bearer token protecting `/api/outbox/process`. Required — the route rejects everything when no token is configured. |
 | `CRON_SECRET` | Production | `<long random secret>` | Vercel automatically sends this as `Authorization: Bearer` on both scheduled routes. |
@@ -43,7 +44,7 @@ Requirements regardless of provider:
 | `SLACK_ALLOWED_ENTERPRISE_IDS` | Production | `<Runpod Slack enterprise ID>` | Comma-separated allowlist. Production Slack access fails closed when both Slack allowlists are empty. |
 | `SLACK_ALLOWED_TEAM_IDS` | Optional | `<workspace IDs>` | Supplements or narrows workspace-level installs. |
 | `SLACK_USER_EMAIL_MAP_JSON` | Optional | `{"U123":"person@runpod.io"}` | Fallback identity mapping when a profile email is unavailable. |
-| `APP_URL` | Production, Preview | `https://utm.runpod.io` | Canonical registry links sent in Slack batch results. |
+| `APP_URL` | Production, Preview | `https://utm-builder-runpod.vercel.app` | The deployment's public origin. Used for canonical registry links (Slack results) **and** to build the OIDC redirect URI `<APP_URL>/api/auth/callback`, so it must exactly match the redirect URI registered in Okta. Change both together if a custom domain (e.g. `utm.runpod.io`) is added later. |
 | `HUBSPOT_ACCESS_TOKEN` | Production | `<HubSpot private-app token>` | Optional at launch: without it, HubSpot syncs stay queued/failed in the outbox and everything else works. |
 | `EXTENSION_IDS` | Production | `<32-character Chrome extension ID>` | Required for the production extension PKCE redirect and CORS. Comma-separated only during a controlled ID transition. |
 
@@ -51,7 +52,26 @@ Reference: `.env.example`.
 
 ## 4. Sign-in providers
 
-### 4a. Google OAuth / OIDC (recommended, decision 2026-09-06)
+### 4a. Okta — Runpod SSO (selected by IT, 2026-09-22)
+
+The same in-app OIDC provider (`src/services/oidc.ts`) runs against Okta with configuration only. Give IT this specification when requesting the app integration:
+
+| Item | Value |
+|---|---|
+| Okta app type | **OIDC — OpenID Connect**, application type **Web Application** |
+| App name | Runpod UTM Builder |
+| Grant type | **Authorization Code** only (no implicit, no refresh token needed) |
+| Client authentication | **Client secret** (the app authenticates to the token endpoint with `client_secret_basic`) |
+| Sign-in redirect URI(s) | `https://utm-builder-runpod.vercel.app/api/auth/callback` (Production). Add one per additional environment/custom domain later. |
+| Sign-out redirect URI | none required (the app clears its own session cookie) |
+| Authorization server | **Org authorization server** (issuer `https://runpod.okta.com`). Not a custom authorization server — plain sign-in needs no API Access Management. |
+| Scopes | `openid`, `email`, `profile` (Okta defaults; no custom claims needed — the app reads email from `userinfo`) |
+| Assignments | The marketing group and/or named users, including the initial administrator. Okta assignment is the first access gate; the app's own provisioning is the second. |
+| Deliverables | Client ID + Client secret via 1Password, and confirmation of the issuer URL. |
+
+Then set: `AUTH_PROVIDER=oidc`, `OIDC_ISSUER=https://runpod.okta.com`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET`, `OIDC_ALLOWED_EMAIL_DOMAINS=runpod.io`, `SESSION_SECRET`, `APP_URL`. Access is governed by two layers: the Okta app assignment (who can authenticate) and the app's `users` table (roles). With `OIDC_AUTO_PROVISION=true` — the policy for the Marketing-group rollout — a first-time Okta sign-in is created as a low-privilege `user` (audited as `auth.oidc_provisioned`); with it unset, an existing active row is required. Roles come only from the database; admin/investigator are explicit promotions in `/admin`; deactivated accounts never sign back in regardless of the flag. Okta's code-flow id_token omits email; the app resolves it from the userinfo endpoint bound to the same `sub`, then applies the verified-email and domain checks. Once Okta is live, turn **off** Vercel Deployment Protection on the project so non-Vercel users can reach the sign-in page — Okta plus in-app provisioning becomes the gate.
+
+### 4a-alt. Google OAuth / OIDC (alternative)
 
 `AUTH_PROVIDER=google` runs the authorization-code flow directly in the app — no identity proxy is required:
 
@@ -83,8 +103,8 @@ Integration contract:
 ## 5. Migrations strategy
 
 - Migrations live in `./drizzle` and are generated by `npm run db:generate`.
-- **Auto-run on boot:** `getDb()` (`src/db/client.ts`) applies pending migrations on first database use in each fresh deployment. This keeps deploys simple, but on serverless the first request pays the cost and concurrent cold starts can race on migration locks.
-- **Recommendation:** run `npm run db:migrate` as an explicit release step (CI/CD, against the production `DATABASE_URL`) before promoting a deployment. Boot-time migration then becomes a no-op safety net.
+- **Production/Preview:** run `npm run db:migrate` as an explicit release step (CI/CD, against that environment's `DATABASE_URL`) before promoting a deployment. `getDb()` does not migrate a configured Postgres database at request time by default.
+- **Local PGlite:** migrations still apply automatically on boot when `DATABASE_URL` is unset. `RUN_MIGRATIONS_ON_BOOT=true` opts a configured Postgres database into boot-time migration, but is not recommended for serverless deployments because cold starts can race.
 - Review generated SQL before release; prefer additive migrations (the schema history is append-friendly by design).
 
 ## 6. Seeding
@@ -171,9 +191,10 @@ Also take periodic config exports (`GET /api/admin/export`) as a lightweight, di
 11. Create a seven-day test token under **API access**; verify `/api/v1/session`, then revoke it and verify the same request returns 401
 12. From the allowlisted extension, capture a current page, preview, issue, and open the resulting registry record
 13. Connect an MCP client to `/api/mcp`; list tools and call `utm_list_reference_data` before attempting any write
-14. Call `gtm_get_data_definition` for `utm_id` and confirm a verified definition is returned
-15. If Notion reconciliation is enabled: create a paused test connector, scan manually, verify a proposal appears without changing the catalog, then reject it with a reason
-16. Import/update `slack/manifest.json`, approve it in Slack, then execute the signed-request, single-link, duplicate-reuse, two-row batch, identity-denial, and GTM MCP smoke tests in [slack.md](slack.md)
+14. Open the repository in Codex, verify `$utm-builder-v2` is discovered, then use it with the configured MCP connection for one read-only search and preview; do not treat skill discovery as proof of authentication
+15. Call `gtm_get_data_definition` for `utm_id` and confirm a verified definition is returned
+16. If Notion reconciliation is enabled: create a paused test connector, scan manually, verify a proposal appears without changing the catalog, then reject it with a reason
+17. Import/update `slack/manifest.json`, approve it in Slack, then execute the signed-request, single-link, duplicate-reuse, two-row batch, identity-denial, and GTM MCP smoke tests in [slack.md](slack.md)
 
 ## 12. Production readiness checklist
 
@@ -192,6 +213,7 @@ Also take periodic config exports (`GET /api/admin/export`) as a lightweight, di
 - [ ] Config export taken and stored
 - [ ] Smoke test (§11) passed
 - [ ] API/MCP tokens have an owner, expiry/rotation policy, and secret-storage standard
+- [ ] If Codex is enabled for the pilot, users follow [codex-skill.md](codex-skill.md), keep tokens out of the repository, and have verified skill discovery plus a read-only MCP call
 - [ ] GTM catalog/source-proposal steward and review SLA assigned
 - [ ] Every enabled Notion connector mapping tested in paused/review-first mode; `NOTION_API_TOKEN` scoped only to approved sources
 - [ ] Platform bulk templates remain draft until account-specific export/import certification is complete

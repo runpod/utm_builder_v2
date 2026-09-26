@@ -18,7 +18,7 @@ export async function GET(req: Request) {
     const provider = process.env.AUTH_PROVIDER ?? "dev";
     if (provider !== "google" && provider !== "oidc") {
       return NextResponse.json(
-        { error: "OIDC sign-in is not enabled. Set AUTH_PROVIDER=google." },
+        { error: "SSO sign-in is not enabled. Set AUTH_PROVIDER=oidc (or google)." },
         { status: 400 },
       );
     }
@@ -33,6 +33,7 @@ export async function GET(req: Request) {
         redirectUri: settings.redirectUri,
         state,
         nonce,
+        issuer: settings.issuer,
         loginHintDomain: settings.allowedDomains[0],
       }),
     );

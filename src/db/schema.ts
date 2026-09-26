@@ -352,7 +352,7 @@ export const platformPresets = pgTable(
   "platform_presets",
   {
     id: text("id").primaryKey(),
-    key: text("key").notNull(), // generic | google_ads | linkedin | meta | reddit | cm360 | hubspot_email | event_qr
+    key: text("key").notNull(), // generic | google_ads | linkedin | x_organic | x_paid | meta | reddit | cm360 | hubspot_email | event_qr
     name: text("name").notNull(),
     outputType: text("output_type").notNull(), // url | tracking_template | email_link | qr_target
     defaults: jsonb("defaults").notNull().default({}), // {utm_medium?, utm_source?}
