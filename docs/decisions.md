@@ -167,6 +167,7 @@ Format per entry: Status / Context / Options / Decision / Justification / Tradeo
 ## 17. Google OAuth (OIDC) as the production sign-in provider
 
 - **Update (2026-09-22):** IT standardized the app on **Okta** (`AUTH_PROVIDER=oidc`, issuer `https://runpod.okta.com`, org authorization server). Same OIDC implementation; hardened for Okta by gating Google-only authorize params, using `client_secret_basic`, and resolving email from `userinfo` when the thin id_token omits it. Google remains a supported alternative. See [deployment-vercel.md §4a](deployment-vercel.md).
+- **Update (2026-09-25):** Rollout scoped to the Okta **Marketing** group; with that assignment as the access gate, `OIDC_AUTO_PROVISION=true` creates first-time sign-ins as `user` (shared `findOrProvisionUser`, audited), removing the administrator as a per-person bottleneck while keeping roles database-only.
 
 - **Status:** Accepted (updated 2026-09-06; supersedes "interim" status)
 - **Context:** Every Runpod employee has a Google Workspace account; Runpod's SaaS SSO catalog runs on Okta, but the UTM Builder pilot should not block on an Okta app registration. The earlier signed-header proxy adapter required standing up an identity-aware proxy that does not exist yet.

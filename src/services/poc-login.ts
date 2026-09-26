@@ -6,14 +6,11 @@
  * exercised by several people who each get their own audited identity. This is
  * deliberately not production auth: access must be gated at the platform layer
  * (Vercel Deployment Protection / invited members). Swapping AUTH_PROVIDER to
- * "google" disables this path entirely with no other change.
+ * "oidc"/"google" disables this path entirely with no other change.
  */
-import { eq } from "drizzle-orm";
-import { newId } from "@/core/ids";
 import type { Db } from "@/db/client";
-import { users } from "@/db/schema";
-import { recordAudit } from "./audit";
 import { AuthError, pocAuthEnabled, type SessionUser } from "./auth";
+import { findOrProvisionUser } from "./user-provisioning";
 
 function allowedDomains(): string[] {
   return (process.env.OIDC_ALLOWED_EMAIL_DOMAINS ?? "runpod.io")
@@ -37,24 +34,8 @@ export async function pocSignIn(db: Db, rawEmail: string): Promise<SessionUser> 
     throw new AuthError(403, `POC sign-in is restricted to: ${domains.join(", ")}.`);
   }
 
-  const [existing] = await db.select().from(users).where(eq(users.email, email)).limit(1);
-  if (existing) {
-    if (!existing.active) throw new AuthError(403, "This account is deactivated.");
-    return { id: existing.id, email: existing.email, name: existing.name, role: existing.role };
-  }
-
-  const id = newId("user");
-  const name = email.split("@")[0].replace(/[._-]+/g, " ");
-  const [row] = await db
-    .insert(users)
-    .values({ id, email, name, role: "user", active: true })
-    .returning();
-  await recordAudit(db, { id: row.id, email: row.email, name: row.name, role: row.role }, {
-    action: "auth.poc_provisioned",
-    entityType: "user",
-    entityId: row.id,
-    after: { email: row.email, role: row.role },
-    context: { mode: "poc" },
-  });
-  return { id: row.id, email: row.email, name: row.name, role: row.role };
+  const result = await findOrProvisionUser(db, { email, provision: true, source: "poc" });
+  if (result.status === "inactive") throw new AuthError(403, "This account is deactivated.");
+  if (result.status !== "active") throw new AuthError(401, "Unable to resolve account.");
+  return result.user;
 }

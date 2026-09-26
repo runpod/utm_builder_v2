@@ -82,7 +82,7 @@ cookies) — expected. Confirm cron runs are landing from only the personal depl
 - **2026-09-23 — Phase 1 done.** Team project deployed at current `main`, `DATABASE_URL` set to the shared pooled Neon string, `AUTH_PROVIDER=poc` stand-in, cron secrets removed on the team project (personal deployment remains the sole outbox owner).
 - **2026-09-25 — Okta live (Phase 3 steps 1–2).** IT delivered the Okta app (client `0oa27bybihppwDw3Q1d8`, issuer `https://runpod.okta.com`, assigned to the initial admin only; further users requested via IT). Set `AUTH_PROVIDER=oidc` + `OIDC_*`, redeployed, admin sign-in verified end to end. Vercel Deployment Protection switched to **preview-only** (`ssoProtection.deploymentType=preview`); anonymous verification: `/`, `/api/health`, `/api/session` reachable, all data/admin/write routes 401, `/api/auth/login` redirects to Okta with correct client/redirect URI/scopes.
 - **Deferred by decision:** cron ownership stays with the personal (testers') deployment — moving it requires changing that deployment, which is frozen while testers use it. Move crons to the team project at decommission time (Phase 3 step 3 / Phase 4).
-- **Onboarding model in effect:** Okta assignment (request via IT; ask for group assignment to avoid per-person tickets) **and** in-app provisioning in `/admin` → users.
+- **Onboarding model (2026-09-25):** Okta app assigned to the **Marketing group** (requested via IT). `OIDC_AUTO_PROVISION=true` on the team project: anyone in the group signs in and is created as `user` (campaigns, initiatives, links); admin/investigator are promoted in `/admin`; deactivating a user in `/admin` blocks them even while still assigned in Okta.
 
 ## Rollback
 

@@ -232,3 +232,7 @@ Additional audit actions include `gtm_catalog.created/updated`, `gtm_relationshi
 2. Roll back by re-applying the `before` value through the same admin endpoint — this is a *new* audited change that bumps the version again. Never edit the database directly; that would break the version/audit chain.
 3. Links issued while the bad config was live are identifiable by `configVersion` (registry search/export includes it). Assess whether any need revision or retirement.
 4. If the config export (§11) predates the incident, diff against it to catch collateral changes.
+
+## Onboarding via Okta (Marketing rollout)
+
+Access has two layers. **Okta app assignment** decides who can authenticate (managed by IT; the app is assigned to the Marketing group). **The `users` table** decides roles. With `OIDC_AUTO_PROVISION=true` (the rollout setting), a first-time Okta sign-in creates the person as a low-privilege `user` automatically and records `auth.oidc_provisioned` in the audit log — no administrator action is needed for them to create campaigns, initiatives, and links. Promote to `admin` or `investigator` in **Admin → Users**. To remove someone's access before IT unassigns them in Okta, **deactivate** them in Admin → Users: deactivated accounts are never re-created or reactivated by signing in.
